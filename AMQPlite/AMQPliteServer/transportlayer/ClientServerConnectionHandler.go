@@ -28,10 +28,6 @@ func ClientConnectionHandler(conn net.Conn, broker *components.Broker, ctx conte
 		expectedBuffer := []byte{'A', 'M', 'Q', 'P', 0, 0, 9, 1}
 		if bytes.Equal(handshakeBuffer, expectedBuffer) {
 			log.Println("handshake successful")
-			//send connection and context to broker and add it
-			go func() {
-				broker.ConnectionManager(conn, ctx) //sending conn to connection manager
-			}()
 			return nil
 		} else {
 			log.Println("handshake unsuccessful")

@@ -60,6 +60,10 @@ func (server *Server) StartServer(ctx context.Context) {
 				expectedBuffer := []byte{'A', 'M', 'Q', 'P', 0, 0, 9, 1}
 				conn.Write(expectedBuffer)
 				conn.Close()
+			} else {
+				go func() {
+					server.broker.ConnectionHandler(conn, ctx)
+				}()
 			}
 		}()
 	}
