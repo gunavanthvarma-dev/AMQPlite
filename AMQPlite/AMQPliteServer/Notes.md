@@ -10,3 +10,14 @@ Connection handler:
 
 Each Connection has a Channel Manager which stores the created channels.
 Each channel is like an independent worker or Goroutine. The channel manager just acts like a registry.
+
+
+
+
+20/02/26
+Implement the required functions for the ConnectionHandler
+--- Connection control function
+--- Channel Manager
+--- Writer goroutine
+--- Connection class
+--- Channel class

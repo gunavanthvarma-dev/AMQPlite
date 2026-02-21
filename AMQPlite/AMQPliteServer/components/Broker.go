@@ -33,7 +33,7 @@ func NewBroker() *Broker {
 //6. Implement Error handling and Context functions.
 
 func (broker *Broker) AddConnection(conn net.Conn) *amqpclasses.Connection {
-	connection := amqpclasses.NewConnection(&conn)
+	connection := amqpclasses.NewConnection(conn)
 	connNumber := len(broker.connections)
 	broker.connections[connNumber] = connection
 	return connection
@@ -77,33 +77,45 @@ func (broker *Broker) handleIncomingFrame(connection *amqpclasses.Connection, he
 func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 	defer conn.Close()
 	connection := broker.AddConnection(conn)
-	//send connection.start method to client
-
-	//implement connection reader loop
-	framechan := make(chan []byte)
-	errchan := make(chan error)
-
-	// read routine
 	go func() {
-		buf := make([]byte, 7)
-		err := connection.ReadConn(buf)
-		if err != nil {
-			errchan <- err
-			return
-		}
-		framechan <- buf
+		<-ctx.Done()
+		conn.Close()
 	}()
 
-	//dispatcher routine
+	// create a connection control goroutine with a buffered channel inbound and outbound to writer channel
 	for {
-		select {
-		case <-ctx.Done():
+		headerBuf := make([]byte, 7)
+		err := connection.ReadConn(headerBuf)
+		if err != nil {
+			// handle error
+		}
+		frameType := int(headerBuf[0])
+		channelID := binary.BigEndian.Uint16(headerBuf[1:3])
+		payloadSize := binary.BigEndian.Uint32(headerBuf[3:7])
+
+		// read payload
+		payloadBuf := make([]byte, payloadSize)
+		if err := connection.ReadConn(payloadBuf); err != nil {
+			fmt.Printf("[Frame ERROR] Failed to read frame payload:%v", err)
 			return
-		case header := <-framechan:
-			//need to handle frame
-		case err := <-errchan:
-			//handle error
+		}
+		frameEndBuf := make([]byte, 1)
+		if err := connection.ReadConn(frameEndBuf); err != nil {
+			fmt.Printf("[Frame ERROR] Failed to read frame end:%v", err)
 			return
+		}
+		if frameEndBuf[0] != FrameEnd {
+			fmt.Printf("[Protocol ERROR] Extected 0xCE as frame end, got 0x%X:", frameEndBuf[0])
+			return
+		}
+
+		//channel control
+		if channelID == 0 {
+			//send to connection control
+		} else if connection.Status == 1 {
+			//get channel from channel manager
+			// if channel does not exists, raise exception
+			// send the frame to the correct channel
 		}
 	}
 

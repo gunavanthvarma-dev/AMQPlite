@@ -8,10 +8,10 @@ type MethodFrame struct {
 	EndByte    uint8
 }
 
-func (m *MethodFrame) ToFrame(data []byte) error {
+func (m *MethodFrame) UnMarshal(data []byte) error {
 
 }
 
-func (m *MethodFrame) ToBytes() ([]byte, error) {
+func (m *MethodFrame) Marshal() ([]byte, error) {
 
 }
