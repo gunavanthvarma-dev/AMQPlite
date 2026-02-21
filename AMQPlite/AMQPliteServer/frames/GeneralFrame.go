@@ -1,6 +1,6 @@
-﻿package frames
+package frames
 
 type GeneralFrame interface {
-UnMarshal([]byte) error
-Marshal() ([]byte, error)
+	UnMarshal([]byte) error
+	Marshal() ([]byte, error)
 }
