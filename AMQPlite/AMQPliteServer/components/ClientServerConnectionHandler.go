@@ -1,7 +1,6 @@
-package transportlayer
+package components
 
 import (
-	"AMQPlite/AMQPliteServer/components"
 	"bytes"
 	"context"
 	"errors"
@@ -10,7 +9,7 @@ import (
 	"time"
 )
 
-func ClientConnectionHandler(conn net.Conn, broker *components.Broker, ctx context.Context) error {
+func ClientConnectionHandler(conn net.Conn, broker *Broker, ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		log.Println("Dropping connection")

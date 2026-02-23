@@ -21,3 +21,11 @@ Implement the required functions for the ConnectionHandler
 --- Writer goroutine
 --- Connection class
 --- Channel class
+
+
+
+22/02/26:
+
+--- For methods that are synchronous in nature, the broker should not receive any other message or process any other message until it receives the appropraite response. Ex: Connection.Start method
+
+--- We can have a frame validation function before passing it to the next function. we set an expected method so just as soon the 

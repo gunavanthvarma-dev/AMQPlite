@@ -2,6 +2,8 @@ package components
 
 import (
 	"AMQPlite/AMQPliteServer/amqpclasses"
+	"AMQPlite/AMQPliteServer/frames"
+	"AMQPlite/AMQPliteServer/transportlayer"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -42,7 +44,7 @@ func (broker *Broker) AddConnection(conn net.Conn) *amqpclasses.Connection {
 func (broker *Broker) handleIncomingFrame(connection *amqpclasses.Connection, header []byte) {
 	// so the header needs to be parsed
 	//First byte is frame type
-	frameType := header[0]
+	//frameType := header[0]
 	//Second is channel
 	channel := binary.BigEndian.Uint16(header[1:3])
 	//thirdis payload size
@@ -83,13 +85,18 @@ func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 	}()
 
 	// create a connection control goroutine with a buffered channel inbound and outbound to writer channel
+	connectionControlChan := make(chan frames.FrameEnvelope, 10)
+	go func() {
+		transportlayer.ConnectionControl(connectionControlChan, connection.WriterChannel, ctx, connection)
+	}()
+
 	for {
 		headerBuf := make([]byte, 7)
 		err := connection.ReadConn(headerBuf)
 		if err != nil {
 			// handle error
 		}
-		frameType := int(headerBuf[0])
+		frameType := uint8(headerBuf[0])
 		channelID := binary.BigEndian.Uint16(headerBuf[1:3])
 		payloadSize := binary.BigEndian.Uint32(headerBuf[3:7])
 
@@ -109,9 +116,16 @@ func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 			return
 		}
 
+		receivedFrame := frames.NewFrameEnvelope()
+		receivedFrame.Channel = channelID
+		receivedFrame.FrameType = frameType
+		receivedFrame.PayloadSize = payloadSize
+		receivedFrame.Payload = payloadBuf
+
 		//channel control
 		if channelID == 0 {
 			//send to connection control
+			connectionControlChan <- receivedFrame
 		} else if connection.Status == 1 {
 			//get channel from channel manager
 			// if channel does not exists, raise exception
