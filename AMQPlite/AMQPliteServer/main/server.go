@@ -2,7 +2,6 @@ package main
 
 import (
 	"AMQPlite/AMQPliteServer/components"
-	"AMQPlite/AMQPliteServer/transportlayer"
 	"context"
 	"errors"
 	"fmt"
@@ -55,7 +54,7 @@ func (server *Server) StartServer(ctx context.Context) {
 			continue
 		}
 		go func() {
-			err := transportlayer.ClientConnectionHandler(conn, server.broker, ctx)
+			err := components.ClientConnectionHandler(conn, server.broker, ctx)
 			if err != nil {
 				expectedBuffer := []byte{'A', 'M', 'Q', 'P', 0, 0, 9, 1}
 				conn.Write(expectedBuffer)
