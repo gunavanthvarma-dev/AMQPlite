@@ -29,3 +29,14 @@ Implement the required functions for the ConnectionHandler
 --- For methods that are synchronous in nature, the broker should not receive any other message or process any other message until it receives the appropraite response. Ex: Connection.Start method
 
 --- We can have a frame validation function before passing it to the next function. we set an expected method so just as soon the 
+
+
+23/02/26:
+--- Implement Field table
+An AMQP Field Table is prefixed by its total length, followed by a series of name-value pairs.
+Field Table = Length (4 bytes) + Field 1 + Field 2+ ... +Field N. 
+Each field follows this specific structure:
+    1.Field Name Length (1 byte): The length of the key's string.
+    2.Field Name (N bytes): The key string itself (UTF-8).
+    3.Value Type Tag (1 byte): A single character representing the data type (e.g., 'S' for string, 'I' for integer).
+    4.Field Value (Variable): The actual data, encoded based on the type tag.
