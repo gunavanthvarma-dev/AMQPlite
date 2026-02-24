@@ -34,6 +34,7 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 			}
 			// wrap client message into a frame
 			//send it to writer channel
+
 		}
 	}
 }

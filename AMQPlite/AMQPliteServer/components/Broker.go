@@ -79,11 +79,18 @@ func (broker *Broker) handleIncomingFrame(connection *amqpclasses.Connection, he
 func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 	defer conn.Close()
 	connection := broker.AddConnection(conn)
+	//context cancel goroutine, it cancels the execution for this connection
 	go func() {
 		<-ctx.Done()
 		conn.Close()
 	}()
-
+	//writer goroutine that receives frames to its channel, marshals it , converts into bytes and sends it to the client
+	go func() {
+		err := ConnWriter(ctx, connection)
+		if err != nil {
+			//handle error
+		}
+	}()
 	// create a connection control goroutine with a buffered channel inbound and outbound to writer channel
 	connectionControlChan := make(chan frames.FrameEnvelope, 10)
 	go func() {
