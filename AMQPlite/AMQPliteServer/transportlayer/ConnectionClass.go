@@ -1,1 +1,45 @@
 package transportlayer
+
+import (
+	"AMQPlite/AMQPliteServer/frames"
+	"AMQPlite/AMQPliteServer/utilties"
+	"bytes"
+	"encoding/binary"
+)
+
+func ConnectionStart() frames.FrameEnvelope {
+	var versionMajor uint8
+	var versionMinor uint8
+	serverProperties := make(map[string]interface{})
+	var mechanisms string
+	var locales string
+
+	versionMajor = 0
+	versionMinor = 9
+	serverProperties["product"] = "AMQPlite"
+	serverProperties["version"] = "1.0.0"
+	mechanisms = "PLAIN AMQPLAIN"
+	locales = "en_US"
+
+	payload := new(bytes.Buffer)
+	payload.WriteByte(versionMajor)
+	payload.WriteByte(versionMinor)
+	serverPropertiesTable, _ := utilties.EncodeFieldTable(serverProperties)
+	binary.Write(payload, binary.BigEndian, uint32(len(serverPropertiesTable)))
+	payload.Write(serverPropertiesTable)
+
+	binary.Write(payload, binary.BigEndian, uint32(len(mechanisms)))
+	payload.WriteString(mechanisms)
+
+	binary.Write(payload, binary.BigEndian, uint32(len(locales)))
+	payload.WriteString(locales)
+
+	frame := frames.NewFrameEnvelope()
+	frame.Channel = 0
+	frame.FrameType = 1
+	frame.PayloadSize = uint32(payload.Len())
+	frame.Payload = payload.Bytes()
+
+	return frame
+
+}

@@ -28,7 +28,10 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 			// --- If the frame is valid, handle it
 			// --- else throw appropriate error
 			//handle inboundFrame by implementing Connection class
-
+			switch methodID {
+			case 10:
+				writer <- ConnectionStart()
+			}
 			// wrap client message into a frame
 			//send it to writer channel
 		}
