@@ -40,3 +40,10 @@ Each field follows this specific structure:
     2.Field Name (N bytes): The key string itself (UTF-8).
     3.Value Type Tag (1 byte): A single character representing the data type (e.g., 'S' for string, 'I' for integer).
     4.Field Value (Variable): The actual data, encoded based on the type tag.
+
+
+
+
+25/02/26:
+--- Skipping connection.secure and connection.secure-ok, as only PLAIN auth is supported for now.
+--- Need to implement comprehensice security and error handling in the future.

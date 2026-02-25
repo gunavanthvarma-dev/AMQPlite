@@ -10,25 +10,35 @@ import (
 // each Connection has a Channel Manager
 // each Connection has a Connection writer that writes to the connection
 type Connection struct {
-	Conn             net.Conn
-	ChannelManager   ChannelManager
-	WriterChannel    chan frames.FrameEnvelope
-	Status           int
-	ExpectedClassID  uint16
-	ExpectedMethodID uint16
-	Lock             sync.RWMutex
+	Conn              net.Conn
+	ChannelManager    ChannelManager
+	WriterChannel     chan frames.FrameEnvelope
+	Status            int
+	ExpectedClassID   uint16
+	ExpectedMethodID  uint16
+	ClientProperties  map[string]any
+	SecurityMechanism string
+	Locale            string
+	UserName          string
+	Password          string
+	Lock              sync.RWMutex
 }
 
 func NewConnection(conn net.Conn) *Connection {
 	temp := NewChannelManager()
 	return &Connection{
-		Conn:             conn,
-		ChannelManager:   temp,
-		WriterChannel:    make(chan frames.FrameEnvelope, 10),
-		Status:           0,
-		ExpectedClassID:  10,
-		ExpectedMethodID: 0,
-		Lock:             sync.RWMutex{},
+		Conn:              conn,
+		ChannelManager:    temp,
+		WriterChannel:     make(chan frames.FrameEnvelope, 10),
+		Status:            0,
+		ExpectedClassID:   10,
+		ExpectedMethodID:  0,
+		ClientProperties:  make(map[string]any),
+		SecurityMechanism: "PLAIN",
+		Locale:            "en_US",
+		UserName:          "",
+		Password:          "",
+		Lock:              sync.RWMutex{},
 	}
 }
 
@@ -38,4 +48,12 @@ func (connection *Connection) ReadConn(buffer []byte) error {
 		return err
 	}
 	return nil
+}
+
+func (connection *Connection) SetExpectedClassID(classID uint16) {
+	connection.ExpectedClassID = classID
+}
+
+func (connection *Connection) SetExpectedMethodID(methodID uint16) {
+	connection.ExpectedMethodID = methodID
 }

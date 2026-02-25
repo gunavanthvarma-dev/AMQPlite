@@ -8,7 +8,7 @@ import (
 
 // IMPORTANT: Need to support all values given in the Spec. still pending
 
-func EncodeFieldTable(table map[string]interface{}) ([]byte, error) {
+func EncodeFieldTable(table map[string]any) ([]byte, error) {
 	var buffer bytes.Buffer
 
 	for key, val := range table {
@@ -25,7 +25,7 @@ func EncodeFieldTable(table map[string]interface{}) ([]byte, error) {
 	return append(result, buffer.Bytes()...), nil
 }
 
-func encodeFieldValue(buf *bytes.Buffer, value interface{}) error {
+func encodeFieldValue(buf *bytes.Buffer, value any) error {
 	switch v := value.(type) {
 	case string:
 		buf.WriteByte('S')
@@ -41,7 +41,7 @@ func encodeFieldValue(buf *bytes.Buffer, value interface{}) error {
 		} else {
 			buf.WriteByte(0)
 		}
-	case map[string]interface{}:
+	case map[string]any:
 		buf.WriteByte('F')
 		valueBytes, _ := EncodeFieldTable(v)
 		buf.Write(valueBytes)
@@ -51,15 +51,15 @@ func encodeFieldValue(buf *bytes.Buffer, value interface{}) error {
 	return nil
 }
 
-func DecodeFieldTable(data []byte) (map[string]interface{}, error) {
+func DecodeFieldTable(data []byte) (map[string]any, []byte, error) {
 	reader := bytes.NewReader(data)
 	var tableLen uint32
 	//read table length
 	if err := binary.Read(reader, binary.BigEndian, &tableLen); err != nil {
-		return nil, err
+		return nil, make([]byte, 0), err
 	}
 
-	fieldTable := make(map[string]interface{})
+	fieldTable := make(map[string]any)
 	bytesRead := 0
 
 	for uint32(bytesRead) < tableLen {
@@ -79,10 +79,10 @@ func DecodeFieldTable(data []byte) (map[string]interface{}, error) {
 		fieldTable[key] = value
 		bytesRead += numBytes
 	}
-	return fieldTable, nil
+	return fieldTable, data[4+tableLen:], nil
 }
 
-func decodeValue(reader *bytes.Reader, tag byte) (interface{}, int, error) {
+func decodeValue(reader *bytes.Reader, tag byte) (any, int, error) {
 	switch tag {
 	case 'S':
 		var len uint32
@@ -100,5 +100,12 @@ func decodeValue(reader *bytes.Reader, tag byte) (interface{}, int, error) {
 		return boolean != 0, 1, nil
 	default:
 		return nil, 0, fmt.Errorf("unknown tag:%c", tag)
+	}
+}
+
+func PrintTable(table map[string]any) {
+	fmt.Println("Client Properties:")
+	for key, value := range table {
+		fmt.Printf("%s:%s\n", key, fmt.Sprintf("%v", value))
 	}
 }

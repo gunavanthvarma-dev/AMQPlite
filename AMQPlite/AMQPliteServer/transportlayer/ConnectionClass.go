@@ -1,16 +1,18 @@
 package transportlayer
 
 import (
+	"AMQPlite/AMQPliteServer/amqpclasses"
 	"AMQPlite/AMQPliteServer/frames"
 	"AMQPlite/AMQPliteServer/utilties"
 	"bytes"
 	"encoding/binary"
+	"fmt"
 )
 
 func ConnectionStart() frames.FrameEnvelope {
 	var versionMajor uint8
 	var versionMinor uint8
-	serverProperties := make(map[string]interface{})
+	serverProperties := make(map[string]any)
 	var mechanisms string
 	var locales string
 
@@ -39,7 +41,20 @@ func ConnectionStart() frames.FrameEnvelope {
 	frame.FrameType = 1
 	frame.PayloadSize = uint32(payload.Len())
 	frame.Payload = payload.Bytes()
-
 	return frame
 
+}
+
+func ConnectionStartOK(args []byte, connection *amqpclasses.Connection) error {
+	clientProperties, remainingData, _ := utilties.DecodeFieldTable(args)
+	connection.ClientProperties = clientProperties
+	//print client properties
+	utilties.PrintTable(clientProperties)
+	connection.SecurityMechanism = string(remainingData[0:2])
+	creds := string(remainingData[2:6])
+	fmt.Printf("\ncredentials:%s", creds) //temp for logging
+
+	connection.Locale = string(remainingData[6:])
+
+	return nil
 }
