@@ -18,8 +18,8 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 			log.Fatalf("closing connection")
 		case inboundFrame := <-Inbound:
 			// extract class id and method id
-			classID := uint8(inboundFrame.Payload[0])
-			methodID := uint8(inboundFrame.Payload[1])
+			classID := uint16(inboundFrame.Payload[0])
+			methodID := uint16(inboundFrame.Payload[1])
 			// call frame validation function
 			err := validateFrame(classID, methodID, connection)
 			if err != nil {
@@ -39,7 +39,7 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 	}
 }
 
-func validateFrame(classID uint8, methodID uint8, connection *amqpclasses.Connection) error {
+func validateFrame(classID uint16, methodID uint16, connection *amqpclasses.Connection) error {
 	//lock RW
 	connection.Lock.RLock()
 	defer connection.Lock.RUnlock()

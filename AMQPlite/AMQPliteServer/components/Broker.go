@@ -4,6 +4,7 @@ import (
 	"AMQPlite/AMQPliteServer/amqpclasses"
 	"AMQPlite/AMQPliteServer/frames"
 	"AMQPlite/AMQPliteServer/transportlayer"
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -79,6 +80,7 @@ func (broker *Broker) handleIncomingFrame(connection *amqpclasses.Connection, he
 func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 	defer conn.Close()
 	connection := broker.AddConnection(conn)
+	fmt.Println("Inside connection handler")
 	//context cancel goroutine, it cancels the execution for this connection
 	go func() {
 		<-ctx.Done()
@@ -96,6 +98,23 @@ func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 	go func() {
 		transportlayer.ConnectionControl(connectionControlChan, connection.WriterChannel, ctx, connection)
 	}()
+
+	//send the initial connection.start method
+	initialPayload := new(bytes.Buffer)
+	binary.Write(initialPayload, binary.BigEndian, uint16(10))
+	binary.Write(initialPayload, binary.BigEndian, uint16(10))
+
+	payloadBytes := initialPayload.Bytes()
+	payloadSize := uint32(len(payloadBytes))
+
+	// Create the frame
+	frame := frames.NewFrameEnvelope()
+	frame.FrameType = 1             // 1 = Method frame
+	frame.Channel = 0               // Channel 0 for connection-level
+	frame.PayloadSize = payloadSize // 4 bytes
+	frame.Payload = payloadBytes
+
+	connectionControlChan <- frame
 
 	for {
 		headerBuf := make([]byte, 7)
