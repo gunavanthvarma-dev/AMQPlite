@@ -14,8 +14,8 @@ type Connection struct {
 	ChannelManager   ChannelManager
 	WriterChannel    chan frames.FrameEnvelope
 	Status           int
-	ExpectedClassID  uint8
-	ExpectedMethodID uint8
+	ExpectedClassID  uint16
+	ExpectedMethodID uint16
 	Lock             sync.RWMutex
 }
 
