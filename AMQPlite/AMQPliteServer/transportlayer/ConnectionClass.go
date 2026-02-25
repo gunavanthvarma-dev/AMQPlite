@@ -58,3 +58,31 @@ func ConnectionStartOK(args []byte, connection *amqpclasses.Connection) error {
 
 	return nil
 }
+
+func ConnectionTune(connection *amqpclasses.Connection) frames.FrameEnvelope {
+	payload := new(bytes.Buffer)
+	binary.Write(payload, binary.BigEndian, connection.ChannelMax)
+	binary.Write(payload, binary.BigEndian, connection.FrameMax)
+	binary.Write(payload, binary.BigEndian, connection.Heartbeat)
+
+	frame := frames.NewFrameEnvelope()
+	frame.Channel = 0
+	frame.FrameType = 1
+	frame.PayloadSize = uint32(payload.Len())
+	frame.Payload = payload.Bytes()
+
+	return frame
+
+}
+
+func ConnectionTuneOk(args []byte, connection *amqpclasses.Connection) error {
+	connection.ChannelMax = binary.BigEndian.Uint16(args[0:2])
+	connection.FrameMax = binary.BigEndian.Uint32(args[2:6])
+	connection.Heartbeat = binary.BigEndian.Uint16(args[6:])
+
+	return nil
+}
+
+func ConnectionOpen(args []byte, connection *amqpclasses.Connection) error {
+	return nil
+}

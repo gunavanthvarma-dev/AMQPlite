@@ -35,7 +35,7 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 				//connection.start
 				writer <- ConnectionStart()
 				connection.SetExpectedClassID(uint16(10))
-				connection.SetExpectedMethodID(uint16(10))
+				connection.SetExpectedMethodID(uint16(11))
 			case 11:
 				//connection.start-ok
 				err := ConnectionStartOK(arguments, connection)
@@ -43,6 +43,23 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 					//handle error
 				}
 				//send connection.tune and wait for connection.tune-ok
+				writer <- ConnectionTune(connection)
+				connection.SetExpectedClassID(10)
+				connection.SetExpectedMethodID(31)
+			case 31:
+				err := ConnectionTuneOk(arguments, connection)
+				connection.ExpectedClassID = 10
+				connection.ExpectedMethodID = 40
+				if err != nil {
+					//handle error
+				}
+			case 40:
+				err := ConnectionOpen(arguments, connection)
+				if err != nil {
+					//handle error
+				}
+				//writer<-ConnectionOpenOk(connection)
+
 			}
 			// wrap client message into a frame
 			//send it to writer channel

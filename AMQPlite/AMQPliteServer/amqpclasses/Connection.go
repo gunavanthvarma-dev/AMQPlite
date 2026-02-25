@@ -21,7 +21,11 @@ type Connection struct {
 	Locale            string
 	UserName          string
 	Password          string
-	Lock              sync.RWMutex
+
+	ChannelMax uint16 //Highest channel number allowed. 0 means no limit
+	FrameMax   uint32 //max size of a frame(bytes). Includes header and frame end
+	Heartbeat  uint16 //interval in seconds
+	Lock       sync.RWMutex
 }
 
 func NewConnection(conn net.Conn) *Connection {
@@ -38,6 +42,9 @@ func NewConnection(conn net.Conn) *Connection {
 		Locale:            "en_US",
 		UserName:          "",
 		Password:          "",
+		ChannelMax:        5,
+		FrameMax:          4096,
+		Heartbeat:         120,
 		Lock:              sync.RWMutex{},
 	}
 }
