@@ -6,6 +6,7 @@ import (
 	"AMQPlite/AMQPliteServer/utilties"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
 
@@ -84,5 +85,50 @@ func ConnectionTuneOk(args []byte, connection *amqpclasses.Connection) error {
 }
 
 func ConnectionOpen(args []byte, connection *amqpclasses.Connection) error {
+	vhostLength := int(args[0])
+	connection.Vhost = string(args[1:vhostLength])
+	if connection.Vhost == "/" {
+		return errors.New("vhost does not exist")
+	}
 	return nil
+}
+
+func ConnectionOpenOk() frames.FrameEnvelope {
+	frame := frames.NewFrameEnvelope()
+	frame.Channel = 0
+	frame.FrameType = 1
+	frame.Payload = []byte{0x00}
+	frame.PayloadSize = uint32(len(frame.Payload))
+	return frame
+}
+
+func RecvConnectionClose(args []byte, connection *amqpclasses.Connection) error {
+	replyCode := binary.BigEndian.Uint16(args[0:1])
+	replyTextLength := uint8(args[1])
+	replyText := string(args[2:replyTextLength])
+	failingClassID := binary.BigEndian.Uint16(args[replyTextLength : replyTextLength+2])
+	failingMethodID := binary.BigEndian.Uint16(args[replyTextLength+2 : replyTextLength+4])
+
+	fmt.Printf("reply code:%d\n", replyCode)
+	fmt.Printf("replytext:%s\n", replyText)
+	fmt.Printf("failing classID:%d\n", failingClassID)
+	fmt.Printf("failing method id:%d\n", failingMethodID)
+
+	return nil
+}
+
+func SendConnectionClose() {
+
+}
+
+func ConnectionCloseOk() frames.FrameEnvelope {
+	frame := frames.NewFrameEnvelope()
+	payload := make([]byte, 4)
+	binary.BigEndian.PutUint16(payload[0:2], 10)
+	binary.BigEndian.PutUint16(payload[2:4], 51)
+	frame.Channel = 0
+	frame.FrameType = 1
+	frame.Payload = payload
+	frame.PayloadSize = uint32(len(payload))
+	return frame
 }

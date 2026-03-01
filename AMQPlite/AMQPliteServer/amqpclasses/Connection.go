@@ -25,6 +25,7 @@ type Connection struct {
 	ChannelMax uint16 //Highest channel number allowed. 0 means no limit
 	FrameMax   uint32 //max size of a frame(bytes). Includes header and frame end
 	Heartbeat  uint16 //interval in seconds
+	Vhost      string
 	Lock       sync.RWMutex
 }
 
@@ -45,6 +46,7 @@ func NewConnection(conn net.Conn) *Connection {
 		ChannelMax:        5,
 		FrameMax:          4096,
 		Heartbeat:         120,
+		Vhost:             "/",
 		Lock:              sync.RWMutex{},
 	}
 }

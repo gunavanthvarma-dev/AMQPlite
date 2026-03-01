@@ -58,8 +58,14 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 				if err != nil {
 					//handle error
 				}
-				//writer<-ConnectionOpenOk(connection)
-
+				writer <- ConnectionOpenOk()
+			case 50:
+				err := RecvConnectionClose(arguments, connection) //for now the server processes close() received from client, need to find a way to include server closing the connection and waiting for close-ok
+				if err != nil {
+					//handle error
+				}
+				// release all resources tied to this connection and then send close-ok
+				writer <- ConnectionCloseOk()
 			}
 			// wrap client message into a frame
 			//send it to writer channel
