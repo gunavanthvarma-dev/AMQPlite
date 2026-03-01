@@ -18,6 +18,14 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 			//send error to client
 			log.Fatalf("closing connection")
 		case inboundFrame := <-Inbound:
+			if inboundFrame.FrameType == 8 {
+				// Heartbeat, just acknowledge or ignore
+				continue
+			}
+			if inboundFrame.FrameType != 1 {
+				// Not a method frame
+				continue
+			}
 			// extract class id and method id
 			classID := binary.BigEndian.Uint16(inboundFrame.Payload[0:2])
 			methodID := binary.BigEndian.Uint16(inboundFrame.Payload[2:4])
