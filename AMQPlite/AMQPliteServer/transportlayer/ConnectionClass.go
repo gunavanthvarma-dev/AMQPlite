@@ -25,10 +25,13 @@ func ConnectionStart() frames.FrameEnvelope {
 	locales = "en_US"
 
 	payload := new(bytes.Buffer)
+	// Class ID (10) and Method ID (10) for Connection.Start
+	binary.Write(payload, binary.BigEndian, uint16(10))
+	binary.Write(payload, binary.BigEndian, uint16(10))
+
 	payload.WriteByte(versionMajor)
 	payload.WriteByte(versionMinor)
 	serverPropertiesTable, _ := utilties.EncodeFieldTable(serverProperties)
-	binary.Write(payload, binary.BigEndian, uint32(len(serverPropertiesTable)))
 	payload.Write(serverPropertiesTable)
 
 	binary.Write(payload, binary.BigEndian, uint32(len(mechanisms)))
@@ -47,21 +50,42 @@ func ConnectionStart() frames.FrameEnvelope {
 }
 
 func ConnectionStartOK(args []byte, connection *amqpclasses.Connection) error {
-	clientProperties, remainingData, _ := utilties.DecodeFieldTable(args)
+	clientProperties, remainingData, err := utilties.DecodeFieldTable(args)
+	if err != nil {
+		return err
+	}
 	connection.ClientProperties = clientProperties
 	//print client properties
 	utilties.PrintTable(clientProperties)
-	connection.SecurityMechanism = string(remainingData[0:2])
-	creds := string(remainingData[2:6])
-	fmt.Printf("\ncredentials:%s", creds) //temp for logging
 
-	connection.Locale = string(remainingData[6:])
+	if len(remainingData) < 1 {
+		return errors.New("missing mechanism length")
+	}
+	mechLen := int(remainingData[0])
+	connection.SecurityMechanism = string(remainingData[1 : 1+mechLen])
+	remainingData = remainingData[1+mechLen:]
+
+	if len(remainingData) < 4 {
+		return errors.New("missing response length")
+	}
+	respLen := binary.BigEndian.Uint32(remainingData[0:4])
+	creds := string(remainingData[4 : 4+int(respLen)])
+	fmt.Printf("\ncredentials:%s\n", creds) //temp for logging
+	remainingData = remainingData[4+int(respLen):]
+
+	if len(remainingData) < 1 {
+		return errors.New("missing locale length")
+	}
+	localeLen := int(remainingData[0])
+	connection.Locale = string(remainingData[1 : 1+localeLen])
 
 	return nil
 }
 
 func ConnectionTune(connection *amqpclasses.Connection) frames.FrameEnvelope {
 	payload := new(bytes.Buffer)
+	binary.Write(payload, binary.BigEndian, uint16(10))
+	binary.Write(payload, binary.BigEndian, uint16(30))
 	binary.Write(payload, binary.BigEndian, connection.ChannelMax)
 	binary.Write(payload, binary.BigEndian, connection.FrameMax)
 	binary.Write(payload, binary.BigEndian, connection.Heartbeat)
@@ -95,19 +119,27 @@ func ConnectionOpen(args []byte, connection *amqpclasses.Connection) error {
 
 func ConnectionOpenOk() frames.FrameEnvelope {
 	frame := frames.NewFrameEnvelope()
+	payload := new(bytes.Buffer)
+	binary.Write(payload, binary.BigEndian, uint16(10))
+	binary.Write(payload, binary.BigEndian, uint16(41))
+	payload.WriteByte(0x00) // reserved a shortstring (length 0)
+
 	frame.Channel = 0
 	frame.FrameType = 1
-	frame.Payload = []byte{0x00}
+	frame.Payload = payload.Bytes()
 	frame.PayloadSize = uint32(len(frame.Payload))
 	return frame
 }
 
 func RecvConnectionClose(args []byte, connection *amqpclasses.Connection) error {
-	replyCode := binary.BigEndian.Uint16(args[0:1])
-	replyTextLength := uint8(args[1])
-	replyText := string(args[2:replyTextLength])
-	failingClassID := binary.BigEndian.Uint16(args[replyTextLength : replyTextLength+2])
-	failingMethodID := binary.BigEndian.Uint16(args[replyTextLength+2 : replyTextLength+4])
+	if len(args) < 2 {
+		return errors.New("invalid connection close frame")
+	}
+	replyCode := binary.BigEndian.Uint16(args[0:2])
+	replyTextLength := uint8(args[2])
+	replyText := string(args[3 : 3+replyTextLength])
+	failingClassID := binary.BigEndian.Uint16(args[3+replyTextLength : 5+replyTextLength])
+	failingMethodID := binary.BigEndian.Uint16(args[5+replyTextLength : 7+replyTextLength])
 
 	fmt.Printf("reply code:%d\n", replyCode)
 	fmt.Printf("replytext:%s\n", replyText)
