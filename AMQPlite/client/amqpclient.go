@@ -18,5 +18,14 @@ func main() {
 
 	// The connection control sequences (Start, Tune, Open) were successful
 	log.Println("Successfully connected to AMQPlite broker via AMQP!")
-	log.Println("Connection Control test complete.")
+	
+	// Create a channel
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Failed to open a channel: %v", err)
+	}
+	defer ch.Close()
+	
+	log.Println("Successfully opened a channel!")
+	log.Println("Connection and Channel Control test complete.")
 }

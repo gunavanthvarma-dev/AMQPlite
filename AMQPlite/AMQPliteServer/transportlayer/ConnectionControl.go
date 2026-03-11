@@ -19,7 +19,7 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 			log.Fatalf("closing connection")
 		case inboundFrame := <-Inbound:
 			if inboundFrame.FrameType == 8 {
-				// Heartbeat, just acknowledge or ignore
+				// Heartbeat, just ack or ignore
 				continue
 			}
 			if inboundFrame.FrameType != 1 {
@@ -67,6 +67,8 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 					//handle error
 				}
 				writer <- ConnectionOpenOk()
+				connection.ExpectedMethodID = 0
+				connection.Status = 1
 			case 50:
 				err := RecvConnectionClose(arguments, connection) //for now the server processes close() received from client, need to find a way to include server closing the connection and waiting for close-ok
 				if err != nil {

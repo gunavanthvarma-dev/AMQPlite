@@ -42,41 +42,6 @@ func (broker *Broker) AddConnection(conn net.Conn) *amqpclasses.Connection {
 	return connection
 }
 
-func (broker *Broker) handleIncomingFrame(connection *amqpclasses.Connection, header []byte) {
-	// so the header needs to be parsed
-	//First byte is frame type
-	//frameType := header[0]
-	//Second is channel
-	channel := binary.BigEndian.Uint16(header[1:3])
-	//thirdis payload size
-	payloadSize := binary.BigEndian.Uint32(header[3:7])
-
-	//read the frame payload and endbyte
-	payloadBuf := make([]byte, payloadSize)
-	if err := connection.ReadConn(payloadBuf); err != nil {
-		fmt.Printf("[Frame ERROR] Failed to read frame payload:%v", err)
-		return
-	}
-	frameEndBuf := make([]byte, 1)
-	if err := connection.ReadConn(frameEndBuf); err != nil {
-		fmt.Printf("[Frame ERROR] Failed to read frame end:%v", err)
-		return
-	}
-	if frameEndBuf[0] != FrameEnd {
-		fmt.Printf("[Protocol ERROR] Extected 0xCE as frame end, got 0x%X:", frameEndBuf[0])
-		return
-	}
-
-	//if it is channel 0, then it is connection frames, so send it to the connection control function
-	if channel == 0 {
-		//connection control function call
-	} else {
-
-	}
-	// if it is any other channel, first check the state of the connection, if the connection is Open then send it to Channel Manager
-	//else return error
-}
-
 func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 	defer conn.Close()
 	connection := broker.AddConnection(conn)
@@ -95,8 +60,13 @@ func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 	}()
 	// create a connection control goroutine with a buffered channel inbound and outbound to writer channel
 	connectionControlChan := make(chan frames.FrameEnvelope, 10)
+	// create a channel manager goroutine with a buffered channel inbound and outbound to writer channel
+	channelManagerInboundChan := make(chan frames.FrameEnvelope, 10)
 	go func() {
 		transportlayer.ConnectionControl(connectionControlChan, connection.WriterChannel, ctx, connection)
+	}()
+	go func() {
+		connection.ChannelManager.ProcessFrame(channelManagerInboundChan, connection, ctx)
 	}()
 
 	//send the initial connection.start method
@@ -120,7 +90,8 @@ func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 		headerBuf := make([]byte, 7)
 		err := connection.ReadConn(headerBuf)
 		if err != nil {
-			// handle error
+			fmt.Printf("[Connection Closed] %v\n", err)
+			return
 		}
 		frameType := uint8(headerBuf[0])
 		channelID := binary.BigEndian.Uint16(headerBuf[1:3])
@@ -138,7 +109,7 @@ func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 			return
 		}
 		if frameEndBuf[0] != FrameEnd {
-			fmt.Printf("[Protocol ERROR] Extected 0xCE as frame end, got 0x%X:", frameEndBuf[0])
+			fmt.Printf("[Protocol ERROR] Expected 0xCE as frame end, got 0x%X:", frameEndBuf[0])
 			return
 		}
 
@@ -153,9 +124,10 @@ func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 			//send to connection control
 			connectionControlChan <- receivedFrame
 		} else if connection.Status == 1 {
-			//get channel from channel manager
-			// if channel does not exists, raise exception
-			// send the frame to the correct channel
+			//send frame to channel manager
+			channelManagerInboundChan <- receivedFrame
+		} else {
+			//handle error
 		}
 	}
 

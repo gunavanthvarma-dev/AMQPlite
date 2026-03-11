@@ -1,4 +1,4 @@
-package errors
+package amqperrors
 
 import (
 	"fmt"
@@ -9,15 +9,15 @@ const (
 	// Normal
 	ReplySuccess uint16 = 200
 	//Channel Exceptions
-	ContentTooLarge    uint16 = 311
+	ContentTooLarge    uint16 = 311 //The client attempted to transfer content larger than the server could accept at the present time. The client may retry at a later time.
 	NoRoute            uint16 = 312
-	NoConsumers        uint16 = 313
+	NoConsumers        uint16 = 313 //When the exchange cannot deliver to a consumer when the immediate flag is set. As a result of pending data on the queue or the absence of any consumers of the queue.
 	AccessRefused      uint16 = 403
 	NotFound           uint16 = 404
 	ResourceLocked     uint16 = 405
 	PreconditionFailed uint16 = 406
 	//Connection Exceptions
-	ConnectionForced uint16 = 320
+	ConnectionForced uint16 = 320 //An operator intervened to close the connection for some reason. The client may retry at some later date.
 	InvalidPath      uint16 = 402
 	FrameError       uint16 = 501
 	SyntaxError      uint16 = 502
