@@ -41,11 +41,13 @@ func (server *Server) StartServer(ctx context.Context) {
 		return
 	}
 	server.listener = listener
-	server.broker = components.NewBroker()
+	brokerContext, brokerCancel := context.WithCancel(ctx)
+	server.broker = components.NewBroker(brokerContext)
 
 	go func() {
 		<-ctx.Done()
 		server.listener.Close()
+		brokerCancel()
 	}()
 	for {
 		conn, err := listener.Accept() //there is no problem due to loop variable capture bug

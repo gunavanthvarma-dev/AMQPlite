@@ -15,16 +15,22 @@ type Broker struct {
 	connections     map[int]*Connection
 	ExchangeManager *ExchangeManager
 	queues          map[string]*Queue
+	ctx             context.Context
 }
 
 const FrameEnd = 0xCE
 
-func NewBroker() *Broker {
-	return &Broker{
+func NewBroker(ctx context.Context) *Broker {
+	broker := &Broker{
 		connections:     make(map[int]*Connection),
 		ExchangeManager: NewExchangeManager(),
 		queues:          make(map[string]*Queue),
+		ctx:             ctx,
 	}
+	go func() {
+		broker.ExchangeManager.ExchangeControl(ctx)
+	}()
+	return broker
 }
 
 // Each Broker has a Connection handler
@@ -42,6 +48,10 @@ func (broker *Broker) AddConnection(conn net.Conn) *Connection {
 	connNumber := len(broker.connections)
 	broker.connections[connNumber] = connection
 	return connection
+}
+
+func (broker *Broker) GetExchangeManager() *ExchangeManager {
+	return broker.ExchangeManager
 }
 
 func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
