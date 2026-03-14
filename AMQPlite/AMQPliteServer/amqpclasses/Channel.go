@@ -4,26 +4,44 @@ import (
 	"AMQPlite/AMQPliteServer/frames"
 	"AMQPlite/AMQPliteServer/utilties"
 	"bytes"
+	"context"
 	"encoding/binary"
 )
 
 type Channel struct {
 	ChannelID        uint16
-	Inbound          chan<- frames.FrameEnvelope
-	Outbound         <-chan frames.FrameEnvelope
+	Pipe             chan frames.FrameEnvelope
 	ParentConnection *Connection
+
+	ctx        context.Context
+	cancelFunc context.CancelFunc
 }
 
-func NewChannel(channelID uint16, connection *Connection) *Channel {
-	return &Channel{
+func NewChannel(channelID uint16, connection *Connection, ctx context.Context, cancelFunc context.CancelFunc) *Channel {
+	channel := &Channel{
 		ChannelID:        channelID,
-		Inbound:          make(chan<- frames.FrameEnvelope, 10),
-		Outbound:         make(<-chan frames.FrameEnvelope, 10),
+		Pipe:             make(chan frames.FrameEnvelope, 10),
 		ParentConnection: connection,
+		ctx:              ctx,
+		cancelFunc:       cancelFunc,
+	}
+
+	go channel.ProcessFrame()
+	return channel
+}
+
+// write processFrame function for channel
+func (channel *Channel) ProcessFrame() {
+	defer channel.cancelFunc()
+	for {
+		select {
+		case <-channel.ctx.Done():
+			return
+		case frame := <-channel.Pipe:
+			// handle frame
+		}
 	}
 }
-
-//write processFrame function for channel
 
 //channel class
 

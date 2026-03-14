@@ -21,12 +21,14 @@ func NewChannelManager() ChannelManager {
 
 func (manager *ChannelManager) GetChannel(channelID uint16) (chan<- frames.FrameEnvelope, error) {
 	if channel, ok := manager.channels[channelID]; ok {
-		return channel.Inbound, nil
+		return channel.Pipe, nil
 	}
 	return nil, amqperrors.NewConnectionError(504, 10, 0, "Channel not found")
 }
 
 func (manager *ChannelManager) ProcessFrame(InboundChannel chan frames.FrameEnvelope, connection *Connection, ctx context.Context) {
+	ctxChan, cancel := context.WithCancel(ctx)
+	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
@@ -41,7 +43,7 @@ func (manager *ChannelManager) ProcessFrame(InboundChannel chan frames.FrameEnve
 
 			classID := binary.BigEndian.Uint16(frame.Payload[0:2])
 			if classID == 20 {
-				manager.ChannelControl(frame, connection)
+				manager.ChannelControl(frame, connection, ctxChan, cancel)
 			} else {
 				channel, err := manager.GetChannel(frame.Channel)
 				if err != nil {
@@ -54,13 +56,13 @@ func (manager *ChannelManager) ProcessFrame(InboundChannel chan frames.FrameEnve
 	}
 }
 
-func (manager *ChannelManager) ChannelControl(frame frames.FrameEnvelope, connection *Connection) {
+func (manager *ChannelManager) ChannelControl(frame frames.FrameEnvelope, connection *Connection, ctx context.Context, cancelfunc context.CancelFunc) {
 
 	methodID := binary.BigEndian.Uint16(frame.Payload[2:4])
 	switch methodID {
 	case 10:
 		//channel.open
-		manager.channels[frame.Channel] = NewChannel(frame.Channel, connection)
+		manager.channels[frame.Channel] = NewChannel(frame.Channel, connection, ctx, cancelfunc)
 		manager.channels[frame.Channel].ParentConnection.WriterChannel <- manager.channels[frame.Channel].SendChannelOpenOK()
 	case 20:
 		//channel.flow
@@ -72,6 +74,7 @@ func (manager *ChannelManager) ChannelControl(frame frames.FrameEnvelope, connec
 		//channel.close
 		if ch, exists := manager.channels[frame.Channel]; exists {
 			ch.ParentConnection.WriterChannel <- ch.SendChannelCloseOK()
+			ch.cancelFunc()
 			delete(manager.channels, frame.Channel)
 		}
 	case 41:

@@ -15,6 +15,26 @@ import (
 type Broker struct {
 	lock        sync.RWMutex
 	connections map[int]*amqpclasses.Connection
+
+	exchanges map[string]*Exchange
+	queues    map[string]*Queue
+}
+
+type Exchange struct {
+	Name     string
+	Type     string
+	Bindings map[string]*Binding
+}
+
+type Queue struct {
+	Name     string
+	Bindings map[string]*Binding
+}
+
+type Binding struct {
+	Exchange   string
+	Queue      string
+	RoutingKey string
 }
 
 const FrameEnd = 0xCE
