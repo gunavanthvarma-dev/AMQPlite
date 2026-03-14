@@ -1,4 +1,4 @@
-package amqpclasses
+package components
 
 import (
 	"AMQPlite/AMQPliteServer/frames"
@@ -12,6 +12,8 @@ type Channel struct {
 	ChannelID        uint16
 	Pipe             chan frames.FrameEnvelope
 	ParentConnection *Connection
+	expectedClassID  uint16
+	expectedMethodID uint16
 
 	ctx        context.Context
 	cancelFunc context.CancelFunc
@@ -38,9 +40,21 @@ func (channel *Channel) ProcessFrame() {
 		case <-channel.ctx.Done():
 			return
 		case frame := <-channel.Pipe:
-			// handle frame
+			channel.HandleFrame(frame)
 		}
 	}
+}
+
+func (channel *Channel) HandleFrame(frame frames.FrameEnvelope) {
+	//check expected class and method id
+	//send error if it does not match else continue
+	//if it 	is part of Exchange class
+	//send to Exchange manager
+	//if it is a part of Queue class
+	//send to Queue manager
+	//if it is a part of Basic class
+	//send to Basic manager
+	//Transaction class
 }
 
 //channel class

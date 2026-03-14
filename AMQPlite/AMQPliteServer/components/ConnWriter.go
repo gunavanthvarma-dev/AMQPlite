@@ -1,12 +1,11 @@
 package components
 
 import (
-	"AMQPlite/AMQPliteServer/amqpclasses"
 	"context"
 	"errors"
 )
 
-func ConnWriter(ctx context.Context, connection *amqpclasses.Connection) error {
+func ConnWriter(ctx context.Context, connection *Connection) error {
 	for {
 		select {
 		case <-ctx.Done():

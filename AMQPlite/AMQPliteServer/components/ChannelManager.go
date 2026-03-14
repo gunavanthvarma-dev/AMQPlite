@@ -1,4 +1,4 @@
-package amqpclasses
+package components
 
 import (
 	"AMQPlite/AMQPliteServer/amqperrors"

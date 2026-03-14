@@ -1,4 +1,4 @@
-package amqpclasses
+package components
 
 import (
 	"AMQPlite/AMQPliteServer/frames"
@@ -26,10 +26,11 @@ type Connection struct {
 	FrameMax   uint32 //max size of a frame(bytes). Includes header and frame end
 	Heartbeat  uint16 //interval in seconds
 	Vhost      string
+	Broker     *Broker
 	Lock       sync.RWMutex
 }
 
-func NewConnection(conn net.Conn) *Connection {
+func NewConnection(conn net.Conn, broker *Broker) *Connection {
 	temp := NewChannelManager()
 	return &Connection{
 		Conn:              conn,
@@ -47,6 +48,7 @@ func NewConnection(conn net.Conn) *Connection {
 		FrameMax:          4096,
 		Heartbeat:         120,
 		Vhost:             "/",
+		Broker:            broker,
 		Lock:              sync.RWMutex{},
 	}
 }

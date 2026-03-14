@@ -1,7 +1,6 @@
-package transportlayer
+package components
 
 import (
-	"AMQPlite/AMQPliteServer/amqpclasses"
 	"AMQPlite/AMQPliteServer/frames"
 	"context"
 	"encoding/binary"
@@ -10,7 +9,7 @@ import (
 	"log"
 )
 
-func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.FrameEnvelope, ctx context.Context, connection *amqpclasses.Connection) {
+func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.FrameEnvelope, ctx context.Context, connection *Connection) {
 
 	for {
 		select {
@@ -84,7 +83,7 @@ func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Fra
 	}
 }
 
-func validateFrame(classID uint16, methodID uint16, connection *amqpclasses.Connection) error {
+func validateFrame(classID uint16, methodID uint16, connection *Connection) error {
 	//lock RW
 	connection.Lock.RLock()
 	defer connection.Lock.RUnlock()

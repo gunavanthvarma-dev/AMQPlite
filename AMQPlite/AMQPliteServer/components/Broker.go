@@ -1,9 +1,7 @@
 package components
 
 import (
-	"AMQPlite/AMQPliteServer/amqpclasses"
 	"AMQPlite/AMQPliteServer/frames"
-	"AMQPlite/AMQPliteServer/transportlayer"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -14,34 +12,17 @@ import (
 
 type Broker struct {
 	lock        sync.RWMutex
-	connections map[int]*amqpclasses.Connection
+	connections map[int]*Connection
 
 	exchanges map[string]*Exchange
 	queues    map[string]*Queue
-}
-
-type Exchange struct {
-	Name     string
-	Type     string
-	Bindings map[string]*Binding
-}
-
-type Queue struct {
-	Name     string
-	Bindings map[string]*Binding
-}
-
-type Binding struct {
-	Exchange   string
-	Queue      string
-	RoutingKey string
 }
 
 const FrameEnd = 0xCE
 
 func NewBroker() *Broker {
 	return &Broker{
-		connections: make(map[int]*amqpclasses.Connection),
+		connections: make(map[int]*Connection),
 	}
 }
 
@@ -55,8 +36,8 @@ func NewBroker() *Broker {
 //5. a Writer loop that writes data to the underlying connection from the write buffer ties to every connection. all frames to be sent to the client must be sent to the write buffer
 //6. Implement Error handling and Context functions.
 
-func (broker *Broker) AddConnection(conn net.Conn) *amqpclasses.Connection {
-	connection := amqpclasses.NewConnection(conn)
+func (broker *Broker) AddConnection(conn net.Conn) *Connection {
+	connection := NewConnection(conn, broker)
 	connNumber := len(broker.connections)
 	broker.connections[connNumber] = connection
 	return connection
@@ -83,7 +64,7 @@ func (broker *Broker) ConnectionHandler(conn net.Conn, ctx context.Context) {
 	// create a channel manager goroutine with a buffered channel inbound and outbound to writer channel
 	channelManagerInboundChan := make(chan frames.FrameEnvelope, 10)
 	go func() {
-		transportlayer.ConnectionControl(connectionControlChan, connection.WriterChannel, ctx, connection)
+		ConnectionControl(connectionControlChan, connection.WriterChannel, ctx, connection)
 	}()
 	go func() {
 		connection.ChannelManager.ProcessFrame(channelManagerInboundChan, connection, ctx)

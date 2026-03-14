@@ -1,7 +1,6 @@
-package transportlayer
+package components
 
 import (
-	"AMQPlite/AMQPliteServer/amqpclasses"
 	"AMQPlite/AMQPliteServer/frames"
 	"AMQPlite/AMQPliteServer/utilties"
 	"bytes"
@@ -49,7 +48,7 @@ func ConnectionStart() frames.FrameEnvelope {
 
 }
 
-func ConnectionStartOK(args []byte, connection *amqpclasses.Connection) error {
+func ConnectionStartOK(args []byte, connection *Connection) error {
 	clientProperties, remainingData, err := utilties.DecodeFieldTable(args)
 	if err != nil {
 		return err
@@ -82,7 +81,7 @@ func ConnectionStartOK(args []byte, connection *amqpclasses.Connection) error {
 	return nil
 }
 
-func ConnectionTune(connection *amqpclasses.Connection) frames.FrameEnvelope {
+func ConnectionTune(connection *Connection) frames.FrameEnvelope {
 	payload := new(bytes.Buffer)
 	binary.Write(payload, binary.BigEndian, uint16(10))
 	binary.Write(payload, binary.BigEndian, uint16(30))
@@ -100,7 +99,7 @@ func ConnectionTune(connection *amqpclasses.Connection) frames.FrameEnvelope {
 
 }
 
-func ConnectionTuneOk(args []byte, connection *amqpclasses.Connection) error {
+func ConnectionTuneOk(args []byte, connection *Connection) error {
 	connection.ChannelMax = binary.BigEndian.Uint16(args[0:2])
 	connection.FrameMax = binary.BigEndian.Uint32(args[2:6])
 	connection.Heartbeat = binary.BigEndian.Uint16(args[6:])
@@ -108,7 +107,7 @@ func ConnectionTuneOk(args []byte, connection *amqpclasses.Connection) error {
 	return nil
 }
 
-func ConnectionOpen(args []byte, connection *amqpclasses.Connection) error {
+func ConnectionOpen(args []byte, connection *Connection) error {
 	vhostLength := int(args[0])
 	connection.Vhost = string(args[1:vhostLength])
 	if connection.Vhost == "/" {
@@ -131,7 +130,7 @@ func ConnectionOpenOk() frames.FrameEnvelope {
 	return frame
 }
 
-func RecvConnectionClose(args []byte, connection *amqpclasses.Connection) error {
+func RecvConnectionClose(args []byte, connection *Connection) error {
 	if len(args) < 2 {
 		return errors.New("invalid connection close frame")
 	}
