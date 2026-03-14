@@ -11,18 +11,19 @@ import (
 )
 
 type Broker struct {
-	lock        sync.RWMutex
-	connections map[int]*Connection
-
-	exchanges map[string]*Exchange
-	queues    map[string]*Queue
+	lock            sync.RWMutex
+	connections     map[int]*Connection
+	ExchangeManager *ExchangeManager
+	queues          map[string]*Queue
 }
 
 const FrameEnd = 0xCE
 
 func NewBroker() *Broker {
 	return &Broker{
-		connections: make(map[int]*Connection),
+		connections:     make(map[int]*Connection),
+		ExchangeManager: NewExchangeManager(),
+		queues:          make(map[string]*Queue),
 	}
 }
 
