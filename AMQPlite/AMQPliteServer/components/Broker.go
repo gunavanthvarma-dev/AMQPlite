@@ -14,7 +14,7 @@ type Broker struct {
 	lock            sync.RWMutex
 	connections     map[int]*Connection
 	ExchangeManager *ExchangeManager
-	queues          map[string]*Queue
+	QueueManager    *QueueManager
 	ctx             context.Context
 }
 
@@ -24,9 +24,11 @@ func NewBroker(ctx context.Context) *Broker {
 	broker := &Broker{
 		connections:     make(map[int]*Connection),
 		ExchangeManager: NewExchangeManager(),
-		queues:          make(map[string]*Queue),
+		QueueManager:    NewQueueManager(),
 		ctx:             ctx,
 	}
+	broker.ExchangeManager.SetBroker(broker)
+	broker.QueueManager.SetBroker(broker)
 	go func() {
 		broker.ExchangeManager.ExchangeControl(ctx)
 	}()

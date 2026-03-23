@@ -15,6 +15,7 @@ type ExchangeManager struct {
 	exchanges    map[string]Exchange
 	InboundChan  chan frames.FrameEnvelope
 	OutboundChan chan frames.FrameEnvelope
+	broker       *Broker
 }
 
 func NewExchangeManager() *ExchangeManager {
@@ -23,6 +24,10 @@ func NewExchangeManager() *ExchangeManager {
 		InboundChan:  make(chan frames.FrameEnvelope, 10),
 		OutboundChan: make(chan frames.FrameEnvelope, 10),
 	}
+}
+
+func (exchangeManager *ExchangeManager) SetBroker(broker *Broker) {
+	exchangeManager.broker = broker
 }
 
 func (exchangeManager *ExchangeManager) ExchangeControl(ctx context.Context) error {

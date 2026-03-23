@@ -11,6 +11,7 @@ import (
 type Channel struct {
 	ChannelID        uint16
 	Pipe             chan frames.FrameEnvelope
+	OutboundChannel  chan frames.FrameEnvelope
 	ParentConnection *Connection
 	expectedClassID  uint16
 	expectedMethodID uint16
@@ -23,13 +24,26 @@ func NewChannel(channelID uint16, connection *Connection, ctx context.Context, c
 	channel := &Channel{
 		ChannelID:        channelID,
 		Pipe:             make(chan frames.FrameEnvelope, 10),
+		OutboundChannel:  make(chan frames.FrameEnvelope, 10),
 		ParentConnection: connection,
 		ctx:              ctx,
 		cancelFunc:       cancelFunc,
 	}
 
 	go channel.ProcessFrame()
+	go channel.WriteFrame(ctx)
 	return channel
+}
+
+func (channel *Channel) WriteFrame(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case frame := <-channel.OutboundChannel:
+			channel.ParentConnection.WriterChannel <- frame
+		}
+	}
 }
 
 // write processFrame function for channel
