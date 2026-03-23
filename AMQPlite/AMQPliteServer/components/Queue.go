@@ -13,16 +13,22 @@ type Queue struct {
 	MessageCount  uint32
 	ConsumerCount uint32
 
-	Bindings map[string]*Binding
+	ExchangeBindings map[string][]*Binding
+	Consumers        map[string]*Consumer
 }
 
 func NewQueue(name string, durable bool, autoDelete bool, exclusive bool) *Queue {
 	return &Queue{
-		Name:         name,
-		QueueInbound: make(chan frames.FrameEnvelope, 10),
-		Durable:      durable,
-		AutoDelete:   autoDelete,
-		Exclusive:    exclusive,
-		Bindings:     make(map[string]*Binding),
+		Name:             name,
+		QueueInbound:     make(chan frames.FrameEnvelope, 10),
+		Durable:          durable,
+		AutoDelete:       autoDelete,
+		Exclusive:        exclusive,
+		ExchangeBindings: make(map[string][]*Binding),
+		Consumers:        make(map[string]*Consumer),
 	}
+}
+
+func (queue *Queue) AddConsumer(consumer *Consumer) {
+	queue.Consumers[consumer.ConsumerTag] = consumer
 }
