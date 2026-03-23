@@ -7,10 +7,10 @@ type ContentEnvelope struct {
 	Body       []byte
 }
 
-func NewContentEnvelope(routingKey string, exchange string, header *ContentHeaderFrame, body []byte) *ContentEnvelope {
+func NewContentEnvelope(exchange string, routingKey string, header *ContentHeaderFrame, body []byte) *ContentEnvelope {
 	return &ContentEnvelope{
-		RoutingKey: routingKey,
 		Exchange:   exchange,
+		RoutingKey: routingKey,
 		Header:     header,
 		Body:       body,
 	}

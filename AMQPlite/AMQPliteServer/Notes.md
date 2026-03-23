@@ -47,3 +47,12 @@ Each field follows this specific structure:
 25/02/26:
 --- Skipping connection.secure and connection.secure-ok, as only PLAIN auth is supported for now.
 --- Need to implement comprehensice security and error handling in the future.
+
+
+23/03/26:
+--- Implemented Queue Consumer and created a map of Consumers in Queue.go
+--- Implemented basic.consume and basic.publish
+
+Next:
+--- Implement publish method in Exchange.go
+--- Implement Queue logic for delivering messages to consumers
