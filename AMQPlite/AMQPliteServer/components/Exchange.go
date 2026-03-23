@@ -6,6 +6,8 @@ type Exchange interface {
 	Publish(frame frames.FrameEnvelope)
 	Delete()
 	AddBinding(binding *Binding, queueName string)
+	GetName() string
+	GetType() string
 }
 
 func NewExchange(name string, exchangeType string) Exchange {

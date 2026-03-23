@@ -16,6 +16,15 @@ type Channel struct {
 	expectedClassID  uint16
 	expectedMethodID uint16
 
+	IsReceivingMessage bool
+	currentExchange    Exchange
+	currentRoutingKey  string
+
+	header           *frames.ContentHeaderFrame
+	expectedBodySize uint64
+	receivedBodySize uint64
+	messageBuffer    []byte
+
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 }
@@ -60,15 +69,54 @@ func (channel *Channel) ProcessFrame() {
 }
 
 func (channel *Channel) HandleFrame(frame frames.FrameEnvelope) {
-	//check expected class and method id
-	//send error if it does not match else continue
-	//if it 	is part of Exchange class
-	//send to Exchange manager
-	//if it is a part of Queue class
-	//send to Queue manager
-	//if it is a part of Basic class
-	//send to Basic manager
-	//Transaction class
+
+	//check frame type
+	switch frame.FrameType {
+	case 1:
+		classID := binary.BigEndian.Uint16(frame.Payload[0:2])
+		//methodID := binary.BigEndian.Uint16(frame.Payload[2:4])
+		switch classID {
+		case 40:
+			//exchange class
+		case 50:
+			//queue class
+		case 60:
+			//basic class
+		case 90:
+			//transaction class
+		}
+	case 2:
+		// if it is a content header
+		//check if it is a content header for a message
+		if channel.IsReceivingMessage {
+			header, err := frames.DecodeContentHeaderFrame(frame.Payload)
+			if err != nil {
+				//handle error
+			}
+			channel.expectedBodySize = header.BodySize
+			channel.receivedBodySize = 0
+			channel.messageBuffer = make([]byte, 0)
+		}
+	case 3:
+		// if it is a content body
+		if channel.IsReceivingMessage {
+			channel.messageBuffer = append(channel.messageBuffer, frame.Payload...)
+			channel.receivedBodySize += uint64(len(frame.Payload))
+			if channel.receivedBodySize >= channel.expectedBodySize {
+
+				contentEnvelope := frames.NewContentEnvelope(channel.currentExchange.GetName(), channel.currentRoutingKey, channel.header, channel.messageBuffer)
+				//send content envelope to exchange
+				channel.currentExchange.Publish(contentEnvelope)
+				channel.IsReceivingMessage = false
+				channel.receivedBodySize = 0
+				channel.expectedBodySize = 0
+				channel.messageBuffer = make([]byte, 0)
+			}
+		}
+	case 4:
+		// if it is a heartbeat
+	}
+
 }
 
 //channel class

@@ -16,8 +16,25 @@ func (directExchange *DirectExchange) Delete() {
 
 }
 
+func (directExchange *DirectExchange) GetName() string {
+	return directExchange.Name
+}
+
+func (directExchange *DirectExchange) GetType() string {
+	return directExchange.Type
+}
+
 func (directExchange *DirectExchange) AddBinding(binding *Binding, queueName string) {
-	directExchange.Bindings[queueName] = append(directExchange.Bindings[queueName], binding)
+	routingKey := binding.RoutingKey
+	if _, ok := directExchange.Bindings[routingKey]; !ok {
+		directExchange.Bindings[routingKey] = make([]*Binding, 0)
+	}
+	for _, b := range directExchange.Bindings[routingKey] {
+		if b.Queue == queueName {
+			return
+		}
+	}
+	directExchange.Bindings[routingKey] = append(directExchange.Bindings[routingKey], binding)
 }
 
 func NewDirectExchange(name string, exchangeType string) *DirectExchange {
