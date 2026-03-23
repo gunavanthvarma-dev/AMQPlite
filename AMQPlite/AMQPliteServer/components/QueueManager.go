@@ -29,6 +29,12 @@ func (queueManager *QueueManager) SetBroker(broker *Broker) {
 	queueManager.broker = broker
 }
 
+func (queueManager *QueueManager) GetQueue(queueName string) *Queue {
+	queueManager.lock.RLock()
+	defer queueManager.lock.RUnlock()
+	return queueManager.queues[queueName]
+}
+
 func (queueManager *QueueManager) QueueControl(ctx context.Context, writer chan frames.FrameEnvelope) error {
 	for {
 		select {
@@ -137,15 +143,15 @@ func (queueManager *QueueManager) BindQueue(queueName string, exchangeName strin
 		return errors.New("queue not found")
 	}
 	binding := NewBinding(exchangeName, queueName, routingKey) //create binding
-	if _, ok := queue.Bindings[exchangeName]; !ok {
-		queue.Bindings[exchangeName] = make([]*Binding, 0)
+	if _, ok := queue.ExchangeBindings[exchangeName]; !ok {
+		queue.ExchangeBindings[exchangeName] = make([]*Binding, 0)
 	}
-	for _, b := range queue.Bindings[exchangeName] {
+	for _, b := range queue.ExchangeBindings[exchangeName] {
 		if b.RoutingKey == routingKey {
 			return nil
 		}
 	}
-	queue.Bindings[exchangeName] = append(queue.Bindings[exchangeName], binding) //add binding to queue
+	queue.ExchangeBindings[exchangeName] = append(queue.ExchangeBindings[exchangeName], binding) //add binding to queue
 	exchange, err := queueManager.broker.ExchangeManager.GetExchange(exchangeName)
 	if err != nil {
 		return err
@@ -172,9 +178,9 @@ func (queueManager *QueueManager) UnbindQueue(queueName string, exchangeName str
 	if queue == nil {
 		return errors.New("queue not found")
 	}
-	for i, b := range queue.Bindings[exchangeName] {
+	for i, b := range queue.ExchangeBindings[exchangeName] {
 		if b.RoutingKey == routingKey {
-			queue.Bindings[exchangeName] = append(queue.Bindings[exchangeName][:i], queue.Bindings[exchangeName][i+1:]...)
+			queue.ExchangeBindings[exchangeName] = append(queue.ExchangeBindings[exchangeName][:i], queue.ExchangeBindings[exchangeName][i+1:]...)
 			return nil
 		}
 	}
