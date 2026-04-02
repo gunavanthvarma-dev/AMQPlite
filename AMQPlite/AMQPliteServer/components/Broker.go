@@ -21,16 +21,31 @@ type Broker struct {
 const FrameEnd = 0xCE
 
 func NewBroker(ctx context.Context) *Broker {
+	queueCtx, queueCancel := context.WithCancel(ctx)
+	exchangeCtx, exchangeCancel := context.WithCancel(ctx)
 	broker := &Broker{
 		connections:     make(map[int]*Connection),
-		ExchangeManager: NewExchangeManager(),
-		QueueManager:    NewQueueManager(),
+		ExchangeManager: NewExchangeManager(exchangeCtx, exchangeCancel),
+		QueueManager:    NewQueueManager(queueCtx, queueCancel),
 		ctx:             ctx,
 	}
 	broker.ExchangeManager.SetBroker(broker)
 	broker.QueueManager.SetBroker(broker)
+
+	// AMQP 0-9-1 requires a default Nameless direct exchange
+	defaultExCtx, defaultExCancel := context.WithCancel(exchangeCtx)
+	_, _ = broker.ExchangeManager.DeclareExchange("", "direct", defaultExCtx, defaultExCancel)
 	go func() {
-		broker.ExchangeManager.ExchangeControl(ctx)
+		err := broker.ExchangeManager.ExchangeControl()
+		if err != nil {
+			//handle error
+		}
+	}()
+	go func() {
+		err := broker.QueueManager.QueueControl()
+		if err != nil {
+			//handle error
+		}
 	}()
 	return broker
 }

@@ -13,16 +13,20 @@ import (
 type ExchangeManager struct {
 	lock         sync.RWMutex
 	exchanges    map[string]Exchange
-	InboundChan  chan frames.FrameEnvelope
+	InboundChan  chan frames.ChannelEnvelope
 	OutboundChan chan frames.FrameEnvelope
+	ctx          context.Context
+	cancel       context.CancelFunc
 	broker       *Broker
 }
 
-func NewExchangeManager() *ExchangeManager {
+func NewExchangeManager(ctx context.Context, cancel context.CancelFunc) *ExchangeManager {
 	return &ExchangeManager{
 		exchanges:    make(map[string]Exchange),
-		InboundChan:  make(chan frames.FrameEnvelope, 10),
+		InboundChan:  make(chan frames.ChannelEnvelope, 10),
 		OutboundChan: make(chan frames.FrameEnvelope, 10),
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 }
 
@@ -30,23 +34,25 @@ func (exchangeManager *ExchangeManager) SetBroker(broker *Broker) {
 	exchangeManager.broker = broker
 }
 
-func (exchangeManager *ExchangeManager) ExchangeControl(ctx context.Context) error {
+func (exchangeManager *ExchangeManager) ExchangeControl() error {
 	for {
 		select {
-		case <-ctx.Done():
+		case <-exchangeManager.ctx.Done():
 			//handle error
 			return nil
 		case frame := <-exchangeManager.InboundChan:
 			//handle frame
-			err := exchangeManager.handleFrame(frame)
+
+			outputFrame, err := exchangeManager.handleFrame(frame.Frame)
 			if err != nil {
 				//handle error
 			}
+			frame.ChannelCallback <- outputFrame
 		}
 	}
 }
 
-func (exchangeManager *ExchangeManager) handleFrame(frame frames.FrameEnvelope) error {
+func (exchangeManager *ExchangeManager) handleFrame(frame frames.FrameEnvelope) (frames.FrameEnvelope, error) {
 	methodID := binary.BigEndian.Uint16(frame.Payload[1:3])
 	switch methodID {
 	case 10:
@@ -63,13 +69,13 @@ func (exchangeManager *ExchangeManager) handleFrame(frame frames.FrameEnvelope) 
 		//no_waitBit := frame.Payload[7+exchangeNameLength+2+exchangeTypeLength+4]
 		//argumentsLength := binary.BigEndian.Uint16(frame.Payload[7+exchangeNameLength+2+exchangeTypeLength+5 : 7+exchangeNameLength+2+exchangeTypeLength+7])
 		//arguments := frame.Payload[7+exchangeNameLength+2+exchangeTypeLength+7 : 7+exchangeNameLength+2+exchangeTypeLength+7+argumentsLength]
-		_, err := exchangeManager.DeclareExchange(exchangeName, exchangeType)
+		exchangeContext, cancel := context.WithCancel(exchangeManager.ctx)
+		_, err := exchangeManager.DeclareExchange(exchangeName, exchangeType, exchangeContext, cancel)
 		if err != nil {
 			fmt.Println(err)
-			return err
+			return frames.FrameEnvelope{}, err
 		}
-		exchangeManager.OutboundChan <- exchangeManager.ExchangeDeclareOk()
-		return nil
+		return exchangeManager.ExchangeDeclareOk(), nil
 	case 20:
 		//exchange.delete
 		exchangeNameLength := binary.BigEndian.Uint16(frame.Payload[5:7])
@@ -78,31 +84,32 @@ func (exchangeManager *ExchangeManager) handleFrame(frame frames.FrameEnvelope) 
 		err := exchangeManager.DeleteExchange(exchangeName)
 		if err != nil {
 			fmt.Println(err)
-			return err
+			return frames.FrameEnvelope{}, err
 		}
-		exchangeManager.OutboundChan <- exchangeManager.ExchangeDeleteOk()
-		return nil
+		return exchangeManager.ExchangeDeleteOk(), nil
 	default:
-		return errors.New("unknown method id")
+		return frames.FrameEnvelope{}, errors.New("unknown method id")
 	}
 
 }
 
-func (exchangeManager *ExchangeManager) DeclareExchange(name string, exchangeType string) (Exchange, error) {
+func (exchangeManager *ExchangeManager) DeclareExchange(name string, exchangeType string, ctx context.Context, cancel context.CancelFunc) (Exchange, error) {
 	exchange, ok := exchangeManager.exchanges[name]
 	if ok {
 		return nil, errors.New("exchange already exists")
 	}
-	exchange = NewExchange(name, exchangeType)
+	exchange = NewExchange(name, exchangeType, exchangeManager, ctx, cancel)
 	exchangeManager.exchanges[name] = exchange
+	go exchange.Publish() //launching a goroutine for each exchange to handle the incoming messages
 	return exchange, nil
 }
 
 func (exchangeManager *ExchangeManager) DeleteExchange(name string) error {
-	_, ok := exchangeManager.exchanges[name]
+	exchange, ok := exchangeManager.exchanges[name]
 	if !ok {
 		return errors.New("exchange not found")
 	}
+	exchange.Cancel()
 	delete(exchangeManager.exchanges, name)
 	return nil
 }

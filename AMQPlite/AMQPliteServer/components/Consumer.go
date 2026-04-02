@@ -1,6 +1,10 @@
 package components
 
-import "AMQPlite/AMQPliteServer/frames"
+import (
+	"AMQPlite/AMQPliteServer/frames"
+	"context"
+	"log"
+)
 
 type Consumer struct {
 	QueueName       string
@@ -8,18 +12,38 @@ type Consumer struct {
 	NoLocal         bool
 	AutoAck         bool
 	Exclusive       bool
-	ConsumerInbound chan frames.FrameEnvelope
+	ConsumerInbound chan frames.ContentEnvelope
 	Channel         *Channel
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 
-func NewConsumer(queueName string, consumerTag string, noLocal bool, autoAck bool, exclusive bool, channel *Channel) *Consumer {
+func NewConsumer(queueName string, consumerTag string, noLocal bool, autoAck bool, exclusive bool, channel *Channel, ctx context.Context, cancel context.CancelFunc) *Consumer {
 	return &Consumer{
 		QueueName:       queueName,
 		ConsumerTag:     consumerTag,
 		NoLocal:         noLocal,
 		AutoAck:         autoAck,
 		Exclusive:       exclusive,
-		ConsumerInbound: make(chan frames.FrameEnvelope, 10),
+		ConsumerInbound: make(chan frames.ContentEnvelope, 10),
 		Channel:         channel,
+		ctx:             ctx,
+		cancel:          cancel,
+	}
+}
+
+func (consumer *Consumer) Consume() {
+	for {
+		select {
+		case <-consumer.ctx.Done():
+			return
+		case frame := <-consumer.ConsumerInbound:
+			//create a deliver frame
+			basicDeliverFrame := consumer.Channel.basicClass.Deliver(consumer.ConsumerTag, consumer.Channel.nextDeliveryTag, frame.Exchange, frame.RoutingKey)
+			consumer.Channel.nextDeliveryTag++
+			log.Println("[DEBUG] Consumer: Pushing frames to OutboundChannel")
+			consumer.Channel.OutboundChannel <- basicDeliverFrame
+			consumer.Channel.OutboundChannel <- frame
+		}
 	}
 }

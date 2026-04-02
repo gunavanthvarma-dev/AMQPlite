@@ -9,7 +9,7 @@ import (
 	"log"
 )
 
-func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.FrameEnvelope, ctx context.Context, connection *Connection) {
+func ConnectionControl(Inbound chan frames.FrameEnvelope, writer chan frames.Envelope, ctx context.Context, connection *Connection) {
 
 	for {
 		select {

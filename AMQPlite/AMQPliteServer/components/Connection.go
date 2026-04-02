@@ -12,7 +12,7 @@ import (
 type Connection struct {
 	Conn              net.Conn
 	ChannelManager    ChannelManager
-	WriterChannel     chan frames.FrameEnvelope
+	WriterChannel     chan frames.Envelope
 	Status            int
 	ExpectedClassID   uint16
 	ExpectedMethodID  uint16
@@ -35,7 +35,7 @@ func NewConnection(conn net.Conn, broker *Broker) *Connection {
 	return &Connection{
 		Conn:              conn,
 		ChannelManager:    temp,
-		WriterChannel:     make(chan frames.FrameEnvelope, 10),
+		WriterChannel:     make(chan frames.Envelope, 10),
 		Status:            0,
 		ExpectedClassID:   10,
 		ExpectedMethodID:  0,

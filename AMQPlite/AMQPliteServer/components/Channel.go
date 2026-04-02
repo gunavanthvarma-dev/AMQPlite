@@ -6,12 +6,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"log"
 )
 
 type Channel struct {
 	ChannelID        uint16
 	Pipe             chan frames.FrameEnvelope
-	OutboundChannel  chan frames.FrameEnvelope
+	OutboundChannel  chan frames.Envelope
 	ParentConnection *Connection
 	expectedClassID  uint16
 	expectedMethodID uint16
@@ -24,24 +25,35 @@ type Channel struct {
 	expectedBodySize uint64
 	receivedBodySize uint64
 	messageBuffer    []byte
+	clientChannelID  uint16
 
 	ctx        context.Context
 	cancelFunc context.CancelFunc
+
+	basicClass      *BasicClass
+	nextDeliveryTag uint64
 }
 
 func NewChannel(channelID uint16, connection *Connection, ctx context.Context, cancelFunc context.CancelFunc) *Channel {
 	channel := &Channel{
 		ChannelID:        channelID,
 		Pipe:             make(chan frames.FrameEnvelope, 10),
-		OutboundChannel:  make(chan frames.FrameEnvelope, 10),
+		OutboundChannel:  make(chan frames.Envelope, 10),
 		ParentConnection: connection,
 		ctx:              ctx,
 		cancelFunc:       cancelFunc,
+		nextDeliveryTag:  1,
 	}
-
+	basicClass := NewBasicClass(channel)
+	channel.SetBasicClass(basicClass)
+	go basicClass.HandleFrame(ctx)
 	go channel.ProcessFrame()
 	go channel.WriteFrame(ctx)
 	return channel
+}
+
+func (channel *Channel) SetBasicClass(basicClass *BasicClass) {
+	channel.basicClass = basicClass
 }
 
 func (channel *Channel) WriteFrame(ctx context.Context) error {
@@ -69,7 +81,7 @@ func (channel *Channel) ProcessFrame() {
 }
 
 func (channel *Channel) HandleFrame(frame frames.FrameEnvelope) {
-
+	log.Printf("[DEBUG] HandleFrame: Type=%d, Channel=%d, PayloadLen=%d", frame.FrameType, frame.Channel, len(frame.Payload))
 	//check frame type
 	switch frame.FrameType {
 	case 1:
@@ -78,10 +90,35 @@ func (channel *Channel) HandleFrame(frame frames.FrameEnvelope) {
 		switch classID {
 		case 40:
 			//exchange class
+			callback := make(chan frames.Envelope)
+			envelope := frames.NewChannelEnvelope(callback, frame)
+			channel.ParentConnection.Broker.ExchangeManager.InboundChan <- *envelope
+			go func() {
+				response := <-callback
+				if resFrame, ok := response.(frames.FrameEnvelope); ok {
+					resFrame.Channel = channel.ChannelID
+					channel.OutboundChannel <- resFrame
+				} else {
+					channel.OutboundChannel <- response
+				}
+			}()
 		case 50:
 			//queue class
+			callback := make(chan frames.Envelope)
+			envelope := frames.NewChannelEnvelope(callback, frame)
+			channel.ParentConnection.Broker.QueueManager.InboundChan <- *envelope
+			go func() {
+				response := <-callback
+				if resFrame, ok := response.(frames.FrameEnvelope); ok {
+					resFrame.Channel = channel.ChannelID
+					channel.OutboundChannel <- resFrame
+				} else {
+					channel.OutboundChannel <- response
+				}
+			}()
 		case 60:
 			//basic class
+			channel.basicClass.framechan <- frame
 		case 90:
 			//transaction class
 		}
@@ -89,10 +126,11 @@ func (channel *Channel) HandleFrame(frame frames.FrameEnvelope) {
 		// if it is a content header
 		//check if it is a content header for a message
 		if channel.IsReceivingMessage {
-			header, err := frames.DecodeContentHeaderFrame(frame.Payload)
+			header, err := frames.DecodeContentHeaderFrame(frame.Payload, channel.clientChannelID)
 			if err != nil {
 				//handle error
 			}
+			channel.header = header
 			channel.expectedBodySize = header.BodySize
 			channel.receivedBodySize = 0
 			channel.messageBuffer = make([]byte, 0)
@@ -104,9 +142,10 @@ func (channel *Channel) HandleFrame(frame frames.FrameEnvelope) {
 			channel.receivedBodySize += uint64(len(frame.Payload))
 			if channel.receivedBodySize >= channel.expectedBodySize {
 
-				contentEnvelope := frames.NewContentEnvelope(channel.currentExchange.GetName(), channel.currentRoutingKey, channel.header, channel.messageBuffer)
+				contentEnvelope := frames.NewContentEnvelope(channel.currentExchange.GetName(), channel.currentRoutingKey, channel.header, channel.messageBuffer, channel.clientChannelID)
 				//send content envelope to exchange
-				channel.currentExchange.Publish(contentEnvelope)
+				log.Println("[DEBUG] Channel: Pushing content array to Exchange:", channel.currentExchange.GetName())
+				channel.currentExchange.GetInputQueue() <- contentEnvelope
 				channel.IsReceivingMessage = false
 				channel.receivedBodySize = 0
 				channel.expectedBodySize = 0

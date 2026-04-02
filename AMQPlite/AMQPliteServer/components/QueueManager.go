@@ -14,14 +14,18 @@ import (
 type QueueManager struct {
 	lock        sync.RWMutex
 	queues      map[string]*Queue
-	InboundChan chan frames.FrameEnvelope
+	InboundChan chan frames.ChannelEnvelope
 	broker      *Broker
+	ctx         context.Context
+	cancel      context.CancelFunc
 }
 
-func NewQueueManager() *QueueManager {
+func NewQueueManager(ctx context.Context, cancel context.CancelFunc) *QueueManager {
 	return &QueueManager{
 		queues:      make(map[string]*Queue),
-		InboundChan: make(chan frames.FrameEnvelope, 10),
+		InboundChan: make(chan frames.ChannelEnvelope, 10),
+		ctx:         ctx,
+		cancel:      cancel,
 	}
 }
 
@@ -29,28 +33,30 @@ func (queueManager *QueueManager) SetBroker(broker *Broker) {
 	queueManager.broker = broker
 }
 
-func (queueManager *QueueManager) GetQueue(queueName string) *Queue {
+func (queueManager *QueueManager) GetQueue(queueName string) (*Queue, error) {
 	queueManager.lock.RLock()
 	defer queueManager.lock.RUnlock()
-	return queueManager.queues[queueName]
+	queue, ok := queueManager.queues[queueName]
+	if !ok {
+		return nil, errors.New("queue not found")
+	}
+	return queue, nil
 }
 
-func (queueManager *QueueManager) QueueControl(ctx context.Context, writer chan frames.FrameEnvelope) error {
+func (queueManager *QueueManager) QueueControl() error {
 	for {
 		select {
-		case <-ctx.Done():
+		case <-queueManager.ctx.Done():
 			//handle error
 			return nil
 		case frame := <-queueManager.InboundChan:
 			//handle frame
-			go func() {
-				frame, err := queueManager.handleFrame(frame)
-				if err != nil {
-					//handle error
-					fmt.Println(err)
-				}
-				writer <- frame
-			}()
+			outputFrame, err := queueManager.handleFrame(frame.Frame)
+			if err != nil {
+				//handle error
+				fmt.Println(err)
+			}
+			frame.ChannelCallback <- outputFrame
 		}
 	}
 }
@@ -60,8 +66,9 @@ func (queueManager *QueueManager) handleFrame(frame frames.FrameEnvelope) (frame
 	switch methodID {
 	case 10:
 		//queue.declare
-		queueName := utilties.DecodeShortString(frame.Payload[4:])
-		offset := 5 + len(queueName)
+		//reserved_1 = frame.Payload[4:6]
+		queueName := utilties.DecodeShortString(frame.Payload[6:])
+		offset := 7 + len(queueName)
 		flags := frame.Payload[offset]
 		passiveBit := (flags & 0x01) != 0
 		durableBit := (flags & 0x02) != 0
@@ -74,6 +81,7 @@ func (queueManager *QueueManager) handleFrame(frame frames.FrameEnvelope) (frame
 			return frames.FrameEnvelope{}, err
 		}
 		queueManager.DeclareQueue(queueName, passiveBit, durableBit, exclusiveBit, autoDeleteBit, noWaitBit, arguments)
+		queueManager.BindQueue(queueName, "", queueName, nil) // Bind without creating a deadlock context
 		return queueManager.DeclareQueueOK(queueName)
 	case 20:
 		//queue.bind
@@ -117,7 +125,10 @@ func (queueManager *QueueManager) DeclareQueue(queueName string, passiveBit bool
 	if _, ok := queueManager.queues[queueName]; ok {
 		return nil
 	}
-	queueManager.queues[queueName] = NewQueue(queueName, durableBit, exclusiveBit, autoDeleteBit)
+	queueCtx, queueCancel := context.WithCancel(queueManager.ctx)
+	newQueue := NewQueue(queueName, durableBit, exclusiveBit, autoDeleteBit, queueCtx, queueCancel)
+	queueManager.queues[queueName] = newQueue
+	go newQueue.ForwardMessages() // Start queue listener
 	return nil
 }
 
@@ -125,6 +136,8 @@ func (queueManager *QueueManager) DeclareQueueOK(queueName string) (frames.Frame
 	queue := queueManager.queues[queueName]
 	frame := frames.NewFrameEnvelope()
 	payloadbuf := new(bytes.Buffer)
+	binary.Write(payloadbuf, binary.BigEndian, uint16(50)) // Class ID
+	binary.Write(payloadbuf, binary.BigEndian, uint16(11)) // Method ID: DeclareOk
 	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(queue.Name))
 	binary.Write(payloadbuf, binary.BigEndian, queue.MessageCount)
 	binary.Write(payloadbuf, binary.BigEndian, queue.ConsumerCount)
@@ -163,7 +176,8 @@ func (queueManager *QueueManager) BindQueue(queueName string, exchangeName strin
 func (queueManager *QueueManager) BindQueueOK(queueName string) (frames.FrameEnvelope, error) {
 	frame := frames.NewFrameEnvelope()
 	payloadbuf := new(bytes.Buffer)
-	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(queueName))
+	binary.Write(payloadbuf, binary.BigEndian, uint16(50)) // Class ID
+	binary.Write(payloadbuf, binary.BigEndian, uint16(21)) // Method ID: BindOk
 	frame.Channel = 0
 	frame.FrameType = 1
 	frame.PayloadSize = uint32(payloadbuf.Len())
@@ -190,7 +204,8 @@ func (queueManager *QueueManager) UnbindQueue(queueName string, exchangeName str
 func (queueManager *QueueManager) UnbindQueueOK(queueName string) (frames.FrameEnvelope, error) {
 	frame := frames.NewFrameEnvelope()
 	payloadbuf := new(bytes.Buffer)
-	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(queueName))
+	binary.Write(payloadbuf, binary.BigEndian, uint16(50)) // Class ID
+	binary.Write(payloadbuf, binary.BigEndian, uint16(51)) // Method ID: UnbindOk
 	frame.Channel = 0
 	frame.FrameType = 1
 	frame.PayloadSize = uint32(payloadbuf.Len())
@@ -212,7 +227,14 @@ func (queueManager *QueueManager) PurgeQueue(queueName string, noWaitBit bool) e
 func (queueManager *QueueManager) PurgeQueueOK(queueName string) (frames.FrameEnvelope, error) {
 	frame := frames.NewFrameEnvelope()
 	payloadbuf := new(bytes.Buffer)
-	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(queueName))
+	binary.Write(payloadbuf, binary.BigEndian, uint16(50)) // Class ID
+	binary.Write(payloadbuf, binary.BigEndian, uint16(31)) // Method ID: PurgeOk
+	// PurgeOk replies with message-count
+	if q, ok := queueManager.queues[queueName]; ok {
+		binary.Write(payloadbuf, binary.BigEndian, q.MessageCount)
+	} else {
+		binary.Write(payloadbuf, binary.BigEndian, uint32(0))
+	}
 	frame.Channel = 0
 	frame.FrameType = 1
 	frame.PayloadSize = uint32(payloadbuf.Len())
@@ -223,17 +245,26 @@ func (queueManager *QueueManager) PurgeQueueOK(queueName string) (frames.FrameEn
 func (queueManager *QueueManager) DeleteQueue(queueName string, ifUnusedBit bool, ifEmptyBit bool, noWaitBit bool, arguments map[string]any) error {
 	queueManager.lock.Lock()
 	defer queueManager.lock.Unlock()
-	if _, ok := queueManager.queues[queueName]; !ok {
-		return nil
+	if queue, ok := queueManager.queues[queueName]; ok {
+		if ifUnusedBit && queue.MessageCount > 0 {
+			return errors.New("queue is not empty")
+		}
+		if ifEmptyBit && queue.MessageCount > 0 {
+			return errors.New("queue is not empty")
+		}
+		queue.cancel()
+		delete(queueManager.queues, queueName)
 	}
-	delete(queueManager.queues, queueName)
 	return nil
 }
 
 func (queueManager *QueueManager) DeleteQueueOK(queueName string) (frames.FrameEnvelope, error) {
 	frame := frames.NewFrameEnvelope()
 	payloadbuf := new(bytes.Buffer)
-	binary.Write(payloadbuf, binary.BigEndian, queueManager.queues[queueName].MessageCount)
+	binary.Write(payloadbuf, binary.BigEndian, uint16(50)) // Class ID
+	binary.Write(payloadbuf, binary.BigEndian, uint16(41)) // Method ID: DeleteOk
+	// DeleteOk replies with message-count (0 since it's deleted)
+	binary.Write(payloadbuf, binary.BigEndian, uint32(0))
 	frame.Channel = 0
 	frame.FrameType = 1
 	frame.PayloadSize = uint32(payloadbuf.Len())

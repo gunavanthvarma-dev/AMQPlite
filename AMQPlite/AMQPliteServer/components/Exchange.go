@@ -1,23 +1,23 @@
 package components
 
-import "AMQPlite/AMQPliteServer/frames"
+import (
+	"AMQPlite/AMQPliteServer/frames"
+	"context"
+)
 
 type Exchange interface {
-	Publish(frame frames.FrameEnvelope)
-	Delete()
+	Publish() error
+	GetInputQueue() chan frames.ContentEnvelope
 	AddBinding(binding *Binding, queueName string)
 	GetName() string
 	GetType() string
+	Cancel()
 }
 
-func NewExchange(name string, exchangeType string) Exchange {
+func NewExchange(name string, exchangeType string, exchangeManager *ExchangeManager, ctx context.Context, cancel context.CancelFunc) Exchange {
 	switch exchangeType {
 	case "direct":
-		return &DirectExchange{
-			Name:     name,
-			Type:     exchangeType,
-			Bindings: make(map[string][]*Binding),
-		}
+		return NewDirectExchange(name, exchangeType, exchangeManager, ctx, cancel)
 	default:
 		return nil
 	}

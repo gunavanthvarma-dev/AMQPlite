@@ -56,3 +56,24 @@ Each field follows this specific structure:
 Next:
 --- Implement publish method in Exchange.go
 --- Implement Queue logic for delivering messages to consumers
+
+
+
+27/03/26:
+--- Implemented publish method in Exchnage.go
+
+
+Next:
+--- Implement Queue logic for delivering messages to consumers
+--- So the Queue should send the message to the consumer and the consumer will write to the channel attached to it and the channel writes to the connection. Need to verify this flow.
+
+
+
+    Part-2:
+    --> need to implement the Envelope interface.
+    --> FrameEnvelope,ChannelEnvelope,ContentEnvelope should implement the Envelope interface.
+    --> so the OutboundChan of Channel should be of type Envelope.
+
+31/03/26:
+--- Implement a General Marshal function for any frame type
+--- Implement basic.deliver method

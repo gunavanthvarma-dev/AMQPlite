@@ -12,11 +12,13 @@ type FrameEnvelope struct {
 	Payload     []byte
 }
 
+func (f FrameEnvelope) isEnvelope() {}
+
 func NewFrameEnvelope() FrameEnvelope {
 	return FrameEnvelope{}
 }
 
-func (f *FrameEnvelope) Marshal() []byte {
+func (f FrameEnvelope) Marshal() []byte {
 	frame := new(bytes.Buffer)
 	frame.WriteByte(f.FrameType)
 	binary.Write(frame, binary.BigEndian, f.Channel)
@@ -25,4 +27,12 @@ func (f *FrameEnvelope) Marshal() []byte {
 	frame.WriteByte(0xCE)
 
 	return frame.Bytes()
+}
+
+func (f FrameEnvelope) GetChannelID() uint16 {
+	return f.Channel
+}
+
+func (f FrameEnvelope) GetFrameType() uint8 {
+	return f.FrameType
 }
