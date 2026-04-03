@@ -38,13 +38,19 @@ func (consumer *Consumer) Consume() {
 		case <-consumer.ctx.Done():
 			return
 		case frame := <-consumer.ConsumerInbound:
-			//create a deliver frame
-			basicDeliverFrame := consumer.Channel.basicClass.Deliver(consumer.ConsumerTag, consumer.Channel.nextDeliveryTag, frame.Exchange, frame.RoutingKey)
-			consumer.Channel.nextDeliveryTag++
-			log.Println("[DEBUG] Consumer: Pushing frames to OutboundChannel")
-			consumer.Channel.OutboundChannel <- basicDeliverFrame
 			//need to set frame to consumer channel ID
 			frame.ChannelID = consumer.Channel.ChannelID
+			//create a deliver frame
+			consumer.Channel.lock.Lock()
+
+			deliveryTag := consumer.Channel.nextDeliveryTag
+			consumer.Channel.nextDeliveryTag++
+
+			consumer.Channel.lock.Unlock()
+			consumer.Channel.AddUnackedMessage(deliveryTag, &frame)
+			basicDeliverFrame := consumer.Channel.basicClass.Deliver(consumer.ConsumerTag, deliveryTag, frame.Exchange, frame.RoutingKey)
+			log.Println("[DEBUG] Consumer: Pushing frames to OutboundChannel")
+			consumer.Channel.OutboundChannel <- basicDeliverFrame
 			consumer.Channel.OutboundChannel <- frame
 		}
 	}

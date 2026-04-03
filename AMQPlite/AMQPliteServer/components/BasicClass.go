@@ -30,17 +30,17 @@ func (basicClass *BasicClass) HandleFrame(ctx context.Context) {
 				//reserved_1 = frame.Payload[4:6]
 				queueNameLength := int(frame.Payload[6])
 				queueName := string(frame.Payload[7 : 7+queueNameLength])
-				
+
 				offset := 7 + queueNameLength
 				consumerTagLength := int(frame.Payload[offset])
 				consumerTag := string(frame.Payload[offset+1 : offset+1+consumerTagLength])
-				
+
 				offset += 1 + consumerTagLength
 				flags := frame.Payload[offset]
 				noLocal := (flags & 0x01) != 0
 				autoAck := (flags & 0x02) != 0
 				exclusive := (flags & 0x04) != 0
-				
+
 				ConsumerCtx, ConsumerCancel := context.WithCancel(ctx)
 				queueConsumer := NewConsumer(queueName, consumerTag, noLocal, autoAck, exclusive, basicClass.parentChannel, ConsumerCtx, ConsumerCancel)
 
@@ -67,11 +67,11 @@ func (basicClass *BasicClass) HandleFrame(ctx context.Context) {
 				//reserved_1 = frame.Payload[4:6]
 				exchangeNameLength := int(frame.Payload[6])
 				exchangeName := string(frame.Payload[7 : 7+exchangeNameLength])
-				
+
 				offset := 7 + exchangeNameLength
 				routingKeyLength := int(frame.Payload[offset])
 				routingKey := string(frame.Payload[offset+1 : offset+1+routingKeyLength])
-				
+
 				// offset += 1 + routingKeyLength
 				// flags := frame.Payload[offset]
 				if basicClass.parentChannel.IsReceivingMessage == false {
@@ -94,6 +94,9 @@ func (basicClass *BasicClass) HandleFrame(ctx context.Context) {
 				//send basic.get-ok or basic.get-empty
 			case 80:
 				//basic.ack
+				deliveryTag := binary.BigEndian.Uint64(frame.Payload[4:12])
+				multiple := frame.Payload[12]
+				basicClass.parentChannel.RemoveAckedMessage(deliveryTag, multiple)
 			case 90:
 				//basic.reject
 			case 100:

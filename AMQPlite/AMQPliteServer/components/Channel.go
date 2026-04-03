@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"log"
+	"sync"
 )
 
 type Channel struct {
@@ -31,7 +32,9 @@ type Channel struct {
 	cancelFunc context.CancelFunc
 
 	basicClass      *BasicClass
+	unackedMessages map[uint64]*frames.ContentEnvelope
 	nextDeliveryTag uint64
+	lock            sync.RWMutex
 }
 
 func NewChannel(channelID uint16, connection *Connection, ctx context.Context, cancelFunc context.CancelFunc) *Channel {
@@ -42,6 +45,7 @@ func NewChannel(channelID uint16, connection *Connection, ctx context.Context, c
 		ParentConnection: connection,
 		ctx:              ctx,
 		cancelFunc:       cancelFunc,
+		unackedMessages:  make(map[uint64]*frames.ContentEnvelope),
 		nextDeliveryTag:  1,
 	}
 	basicClass := NewBasicClass(channel)
@@ -54,6 +58,27 @@ func NewChannel(channelID uint16, connection *Connection, ctx context.Context, c
 
 func (channel *Channel) SetBasicClass(basicClass *BasicClass) {
 	channel.basicClass = basicClass
+}
+
+func (channel *Channel) AddUnackedMessage(deliveryTag uint64, frame *frames.ContentEnvelope) {
+	channel.lock.Lock()
+	defer channel.lock.Unlock()
+	channel.unackedMessages[deliveryTag] = frame
+}
+
+func (channel *Channel) RemoveAckedMessage(deliveryTag uint64, multiple byte) {
+	channel.lock.Lock()
+	defer channel.lock.Unlock()
+	if multiple > 0 {
+		for tag := range channel.unackedMessages {
+			if tag <= deliveryTag {
+				delete(channel.unackedMessages, tag)
+			}
+		}
+	} else {
+		delete(channel.unackedMessages, deliveryTag)
+	}
+
 }
 
 func (channel *Channel) WriteFrame(ctx context.Context) error {
