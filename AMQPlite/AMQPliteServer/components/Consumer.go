@@ -43,6 +43,8 @@ func (consumer *Consumer) Consume() {
 			consumer.Channel.nextDeliveryTag++
 			log.Println("[DEBUG] Consumer: Pushing frames to OutboundChannel")
 			consumer.Channel.OutboundChannel <- basicDeliverFrame
+			//need to set frame to consumer channel ID
+			frame.ChannelID = consumer.Channel.ChannelID
 			consumer.Channel.OutboundChannel <- frame
 		}
 	}

@@ -53,7 +53,7 @@ func (exchangeManager *ExchangeManager) ExchangeControl() error {
 }
 
 func (exchangeManager *ExchangeManager) handleFrame(frame frames.FrameEnvelope) (frames.FrameEnvelope, error) {
-	methodID := binary.BigEndian.Uint16(frame.Payload[1:3])
+	methodID := binary.BigEndian.Uint16(frame.Payload[2:4])
 	switch methodID {
 	case 10:
 		//exchange.declare
