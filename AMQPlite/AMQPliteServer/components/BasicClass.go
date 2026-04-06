@@ -99,6 +99,9 @@ func (basicClass *BasicClass) HandleFrame(ctx context.Context) {
 				basicClass.parentChannel.RemoveAckedMessage(deliveryTag, multiple)
 			case 90:
 				//basic.reject
+				deliveryTag := binary.BigEndian.Uint64(frame.Payload[4:12])
+				requeue := frame.Payload[12]
+				basicClass.parentChannel.RemoveUnackedMessage(deliveryTag, requeue)
 			case 100:
 				//basic.recover-async
 				//send recover-ok

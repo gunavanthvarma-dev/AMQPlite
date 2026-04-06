@@ -81,6 +81,19 @@ func (channel *Channel) RemoveAckedMessage(deliveryTag uint64, multiple byte) {
 
 }
 
+func (channel *Channel) RemoveUnackedMessage(deliveryTag uint64, requeue byte) {
+	channel.lock.Lock()
+	unackedMessage := channel.unackedMessages[deliveryTag]
+	delete(channel.unackedMessages, deliveryTag)
+	channel.lock.Unlock()
+	if requeue > 0 {
+		queue, err := channel.ParentConnection.Broker.QueueManager.GetQueue(unackedMessage.RoutingKey)
+		if err == nil {
+			queue.QueueInbound <- *unackedMessage
+		}
+	}
+}
+
 func (channel *Channel) WriteFrame(ctx context.Context) error {
 	for {
 		select {
