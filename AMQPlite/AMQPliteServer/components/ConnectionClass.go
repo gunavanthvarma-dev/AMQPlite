@@ -109,8 +109,8 @@ func ConnectionTuneOk(args []byte, connection *Connection) error {
 
 func ConnectionOpen(args []byte, connection *Connection) error {
 	vhostLength := int(args[0])
-	connection.Vhost = string(args[1:vhostLength])
-	if connection.Vhost == "/" {
+	connection.Vhost = string(args[1 : 1+vhostLength])
+	if connection.Vhost != "/" {
 		return errors.New("vhost does not exist")
 	}
 	return nil

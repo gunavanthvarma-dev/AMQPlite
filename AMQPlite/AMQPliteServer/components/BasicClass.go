@@ -38,11 +38,12 @@ func (basicClass *BasicClass) HandleFrame(ctx context.Context) {
 				offset += 1 + consumerTagLength
 				flags := frame.Payload[offset]
 				noLocal := (flags & 0x01) != 0
-				autoAck := (flags & 0x02) != 0
+				noAck := (flags & 0x02) != 0
 				exclusive := (flags & 0x04) != 0
+				noWait := (flags & 0x08) != 0
 
 				ConsumerCtx, ConsumerCancel := context.WithCancel(ctx)
-				queueConsumer := NewConsumer(queueName, consumerTag, noLocal, autoAck, exclusive, basicClass.parentChannel, ConsumerCtx, ConsumerCancel)
+				queueConsumer := NewConsumer(queueName, consumerTag, noLocal, noAck, noWait, exclusive, basicClass.parentChannel, ConsumerCtx, ConsumerCancel, false)
 
 				//add consumer to queue
 				//get queuemanager
@@ -111,6 +112,28 @@ func (basicClass *BasicClass) HandleFrame(ctx context.Context) {
 				//basic.return
 			case 70:
 				//basic.get
+				//reserved_1:= frame.Payload[4:6]
+				queueName := utilties.DecodeShortString(frame.Payload[6:14])
+				no_ack := frame.Payload[7+len(queueName)]
+				queueManager := basicClass.parentChannel.ParentConnection.Broker.QueueManager
+				queue, err := queueManager.GetQueue(queueName)
+				if err != nil {
+					//handle error
+				}
+				queue.lock.RLock()
+				if queue.MessageCount == 0 {
+					basicClass.parentChannel.OutboundChannel <- basicClass.GetEmpty()
+					queue.lock.RUnlock()
+				} else {
+					queue.lock.RUnlock()
+					tempConsumerCtx, tempConsumerCancel := context.WithCancel(ctx)
+					tempConsumer := NewConsumer(queueName, "temp", false, no_ack != 0, false, false, basicClass.parentChannel, tempConsumerCtx, tempConsumerCancel, true)
+					queue.AddConsumer(tempConsumer)
+				}
+				// register a temporary consumer
+				// get the first message from the queue
+				// send it to the client and close the consumer
+
 				//send basic.get-ok or basic.get-empty
 			case 80:
 				//basic.ack
@@ -174,7 +197,45 @@ func (basicClass *BasicClass) Deliver(consumerTag string, deliveryTag uint64, ex
 func (basicClass *BasicClass) CancelOk(consumerTag string) frames.FrameEnvelope {
 	frame := frames.NewFrameEnvelope()
 	payloadbuf := new(bytes.Buffer)
+	binary.Write(payloadbuf, binary.BigEndian, uint16(60)) // Class ID
+	binary.Write(payloadbuf, binary.BigEndian, uint16(31)) // Method ID: cancel-ok
 	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(consumerTag))
+	frame.Channel = basicClass.parentChannel.ChannelID
+	frame.FrameType = 1
+	frame.PayloadSize = uint32(payloadbuf.Len())
+	frame.Payload = payloadbuf.Bytes()
+	return frame
+}
+
+func (basicClass *BasicClass) GetOk(deliveryTag uint64, Redelivered bool, Exchange string, RoutingKey string, MessageCount uint32) frames.FrameEnvelope {
+	frame := frames.NewFrameEnvelope()
+	payloadbuf := new(bytes.Buffer)
+	binary.Write(payloadbuf, binary.BigEndian, uint16(60)) // Class ID
+	binary.Write(payloadbuf, binary.BigEndian, uint16(71)) // Method ID: get-ok
+	binary.Write(payloadbuf, binary.BigEndian, deliveryTag)
+	var redelivery uint8
+	if Redelivered == false {
+		redelivery = 0
+	} else {
+		redelivery = 1
+	}
+	binary.Write(payloadbuf, binary.BigEndian, redelivery)
+	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(Exchange))
+	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(RoutingKey))
+	binary.Write(payloadbuf, binary.BigEndian, MessageCount)
+	frame.Channel = basicClass.parentChannel.ChannelID
+	frame.FrameType = 1
+	frame.PayloadSize = uint32(payloadbuf.Len())
+	frame.Payload = payloadbuf.Bytes()
+	return frame
+}
+
+func (basicClass *BasicClass) GetEmpty() frames.FrameEnvelope {
+	frame := frames.NewFrameEnvelope()
+	payloadbuf := new(bytes.Buffer)
+	binary.Write(payloadbuf, binary.BigEndian, uint16(60)) // Class ID
+	binary.Write(payloadbuf, binary.BigEndian, uint16(72)) // Method ID: get-empty
+	payloadbuf.WriteByte(0)
 	frame.Channel = basicClass.parentChannel.ChannelID
 	frame.FrameType = 1
 	frame.PayloadSize = uint32(payloadbuf.Len())

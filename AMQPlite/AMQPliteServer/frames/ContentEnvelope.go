@@ -6,24 +6,26 @@ import (
 )
 
 type ContentEnvelope struct {
-	RoutingKey string
-	Exchange   string
-	Header     *ContentHeaderFrame
-	Body       []byte
-	FrameType  uint8
-	ChannelID  uint16
+	RoutingKey  string
+	Exchange    string
+	Header      *ContentHeaderFrame
+	Body        []byte
+	FrameType   uint8
+	ChannelID   uint16
+	Redelivered bool
 }
 
 func (c ContentEnvelope) isEnvelope() {}
 
 func NewContentEnvelope(exchange string, routingKey string, header *ContentHeaderFrame, body []byte, channel uint16) ContentEnvelope {
 	return ContentEnvelope{
-		Exchange:   exchange,
-		RoutingKey: routingKey,
-		Header:     header,
-		Body:       body,
-		FrameType:  3,
-		ChannelID:  channel,
+		Exchange:    exchange,
+		RoutingKey:  routingKey,
+		Header:      header,
+		Body:        body,
+		FrameType:   3,
+		ChannelID:   channel,
+		Redelivered: false,
 	}
 }
 
@@ -41,4 +43,8 @@ func (c ContentEnvelope) GetChannelID() uint16 {
 
 func (c ContentEnvelope) GetFrameType() uint8 {
 	return c.FrameType
+}
+
+func (c *ContentEnvelope) SetRedelivered(val bool) {
+	c.Redelivered = val
 }

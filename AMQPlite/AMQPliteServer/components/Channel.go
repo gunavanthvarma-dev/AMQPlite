@@ -87,6 +87,7 @@ func (channel *Channel) RemoveUnackedMessage(deliveryTag uint64, requeue byte) {
 	delete(channel.unackedMessages, deliveryTag)
 	channel.lock.Unlock()
 	if requeue > 0 {
+		unackedMessage.SetRedelivered(true)
 		queue, err := channel.ParentConnection.Broker.QueueManager.GetQueue(unackedMessage.RoutingKey)
 		if err == nil {
 			queue.QueueInbound <- *unackedMessage

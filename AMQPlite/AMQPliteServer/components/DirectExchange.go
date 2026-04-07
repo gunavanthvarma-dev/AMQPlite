@@ -8,13 +8,13 @@ import (
 )
 
 type DirectExchange struct {
-	Name        string
-	Type        string
-	InputQueue  chan frames.ContentEnvelope
-	OutputQueue chan frames.ContentEnvelope
-	Bindings    map[string][]*Binding
-	ctx         context.Context
-	cancel      context.CancelFunc
+	Name            string
+	Type            string
+	InputQueue      chan frames.ContentEnvelope
+	OutputQueue     chan frames.ContentEnvelope
+	Bindings        map[string][]*Binding
+	ctx             context.Context
+	cancel          context.CancelFunc
 	exchangeManager *ExchangeManager
 }
 
@@ -24,7 +24,7 @@ func (directExchange *DirectExchange) Publish() error {
 		case <-directExchange.ctx.Done():
 			return errors.New("exchange cancelled")
 		case frame := <-directExchange.InputQueue:
-			err:=directExchange.handleFrame(frame)
+			err := directExchange.handleFrame(frame)
 			if err != nil {
 				return err
 			}
@@ -44,6 +44,9 @@ func (directExchange *DirectExchange) handleFrame(frame frames.ContentEnvelope) 
 			return err
 		}
 		log.Println("[DEBUG] Exchange: Routing to QueueInbound:", binding.Queue)
+		queue.lock.Lock()
+		queue.MessageCount++
+		queue.lock.Unlock()
 		queue.QueueInbound <- frame
 	}
 	return nil
@@ -79,15 +82,15 @@ func (directExchange *DirectExchange) AddBinding(binding *Binding, queueName str
 	directExchange.Bindings[routingKey] = append(directExchange.Bindings[routingKey], binding)
 }
 
-func NewDirectExchange(name string, exchangeType string,exchangeManager *ExchangeManager, ctx context.Context, cancel context.CancelFunc) *DirectExchange {
+func NewDirectExchange(name string, exchangeType string, exchangeManager *ExchangeManager, ctx context.Context, cancel context.CancelFunc) *DirectExchange {
 	return &DirectExchange{
-		Name:        name,
-		Type:        exchangeType,
-		InputQueue:  make(chan frames.ContentEnvelope, 20),
-		OutputQueue: make(chan frames.ContentEnvelope, 20),
-		Bindings:    make(map[string][]*Binding),
-		ctx:         ctx,
-		cancel:      cancel,
+		Name:            name,
+		Type:            exchangeType,
+		InputQueue:      make(chan frames.ContentEnvelope, 20),
+		OutputQueue:     make(chan frames.ContentEnvelope, 20),
+		Bindings:        make(map[string][]*Binding),
+		ctx:             ctx,
+		cancel:          cancel,
 		exchangeManager: exchangeManager,
 	}
 }
