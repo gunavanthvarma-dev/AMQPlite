@@ -12,20 +12,22 @@ import (
 )
 
 type QueueManager struct {
-	lock        sync.RWMutex
-	queues      map[string]*Queue
-	InboundChan chan frames.ChannelEnvelope
-	broker      *Broker
-	ctx         context.Context
-	cancel      context.CancelFunc
+	lock            sync.RWMutex
+	queues          map[string]*Queue
+	InboundChan     chan frames.ChannelEnvelope
+	broker          *Broker
+	ConsumerManager *ConsumerManager
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 
 func NewQueueManager(ctx context.Context, cancel context.CancelFunc) *QueueManager {
 	return &QueueManager{
-		queues:      make(map[string]*Queue),
-		InboundChan: make(chan frames.ChannelEnvelope, 10),
-		ctx:         ctx,
-		cancel:      cancel,
+		queues:          make(map[string]*Queue),
+		InboundChan:     make(chan frames.ChannelEnvelope, 10),
+		ConsumerManager: NewConsumerManager(),
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 }
 

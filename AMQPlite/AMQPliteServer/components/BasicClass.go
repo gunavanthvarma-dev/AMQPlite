@@ -55,6 +55,7 @@ func (basicClass *BasicClass) HandleFrame(ctx context.Context) {
 				}
 				//add consumer to queue
 				queue.AddConsumer(queueConsumer)
+				queueManager.ConsumerManager.AddConsumer(queueConsumer.ConsumerTag, queueName)
 				go queueConsumer.Consume() // Start the consumer goroutine
 				//send basic.consume-ok
 				basicClass.parentChannel.OutboundChannel <- basicClass.ConsumeOK(consumerTag)
@@ -62,6 +63,25 @@ func (basicClass *BasicClass) HandleFrame(ctx context.Context) {
 				//basic.cancel
 				//remove consumer from queue
 				//send basic.cancel-ok
+				consumerTag := utilties.DecodeShortString(frame.Payload[4:12])
+
+				no_wait := frame.Payload[4+1+len(consumerTag)]
+				queueName, err := basicClass.parentChannel.ParentConnection.Broker.QueueManager.ConsumerManager.GetQueueAttachedToConsumer(consumerTag)
+				if err != nil {
+					//raise exception
+				}
+				queue, err := basicClass.parentChannel.ParentConnection.Broker.QueueManager.GetQueue(queueName)
+				if err != nil {
+					//handle error
+				}
+				consumer := queue.getConsumer(consumerTag)
+				//stop consumer goroutine
+				consumer.cancel()
+				queue.RemoveConsumer(consumerTag)
+				basicClass.parentChannel.ParentConnection.Broker.QueueManager.ConsumerManager.RemoveConsumer(consumerTag)
+				if no_wait == 0 {
+					basicClass.parentChannel.OutboundChannel <- basicClass.CancelOk(consumerTag)
+				}
 			case 40:
 				//basic.publish
 				//reserved_1 = frame.Payload[4:6]
@@ -144,6 +164,17 @@ func (basicClass *BasicClass) Deliver(consumerTag string, deliveryTag uint64, ex
 	binary.Write(payloadbuf, binary.BigEndian, redelivery)
 	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(exchange))
 	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(routingKey))
+	frame.Channel = basicClass.parentChannel.ChannelID
+	frame.FrameType = 1
+	frame.PayloadSize = uint32(payloadbuf.Len())
+	frame.Payload = payloadbuf.Bytes()
+	return frame
+}
+
+func (basicClass *BasicClass) CancelOk(consumerTag string) frames.FrameEnvelope {
+	frame := frames.NewFrameEnvelope()
+	payloadbuf := new(bytes.Buffer)
+	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(consumerTag))
 	frame.Channel = basicClass.parentChannel.ChannelID
 	frame.FrameType = 1
 	frame.PayloadSize = uint32(payloadbuf.Len())
