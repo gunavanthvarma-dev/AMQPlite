@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"log"
 )
 
 type BasicClass struct {
@@ -128,7 +129,9 @@ func (basicClass *BasicClass) HandleFrame(ctx context.Context) {
 					queue.lock.RUnlock()
 					tempConsumerCtx, tempConsumerCancel := context.WithCancel(ctx)
 					tempConsumer := NewConsumer(queueName, "temp", false, no_ack != 0, false, false, basicClass.parentChannel, tempConsumerCtx, tempConsumerCancel, true)
+					log.Printf("[DEBUG] Adding tempConsumer for basic.get for queue:%s", queueName)
 					queue.AddConsumer(tempConsumer)
+					go tempConsumer.Consume()
 				}
 				// register a temporary consumer
 				// get the first message from the queue
@@ -176,14 +179,19 @@ func (basicClass *BasicClass) ConsumeOK(consumerTag string) frames.FrameEnvelope
 	return frame
 }
 
-func (basicClass *BasicClass) Deliver(consumerTag string, deliveryTag uint64, exchange string, routingKey string) frames.Envelope {
+func (basicClass *BasicClass) Deliver(consumerTag string, deliveryTag uint64, exchange string, routingKey string, redelivered bool) frames.Envelope {
 	frame := frames.NewFrameEnvelope()
 	payloadbuf := new(bytes.Buffer)
 	binary.Write(payloadbuf, binary.BigEndian, uint16(60)) // Class ID
 	binary.Write(payloadbuf, binary.BigEndian, uint16(60)) // Method ID: Deliver
 	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(consumerTag))
 	binary.Write(payloadbuf, binary.BigEndian, deliveryTag)
-	redelivery := uint8(0)
+	var redelivery uint8
+	if redelivered == true {
+		redelivery = 1
+	} else {
+		redelivery = 0
+	}
 	binary.Write(payloadbuf, binary.BigEndian, redelivery)
 	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(exchange))
 	binary.Write(payloadbuf, binary.BigEndian, utilties.EncodeShortString(routingKey))
