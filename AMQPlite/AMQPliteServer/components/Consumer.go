@@ -54,13 +54,14 @@ func (consumer *Consumer) Consume() {
 			queue, _ := consumer.Channel.ParentConnection.Broker.QueueManager.GetQueue(consumer.QueueName)
 
 			if consumer.GetMode == true {
+				log.Printf("[DEBUG] basic.get in tempConsumer for Queue:%s", consumer.QueueName)
 				basicGetOKFrame := consumer.Channel.basicClass.GetOk(deliveryTag, frame.Redelivered, frame.Exchange, frame.RoutingKey, queue.MessageCount)
 				consumer.Channel.OutboundChannel <- basicGetOKFrame
 				consumer.Channel.OutboundChannel <- frame
 				queue.RemoveConsumer(consumer.ConsumerTag)
 				consumer.cancel()
 			} else {
-				basicDeliverFrame := consumer.Channel.basicClass.Deliver(consumer.ConsumerTag, deliveryTag, frame.Exchange, frame.RoutingKey)
+				basicDeliverFrame := consumer.Channel.basicClass.Deliver(consumer.ConsumerTag, deliveryTag, frame.Exchange, frame.RoutingKey, frame.Redelivered)
 				log.Println("[DEBUG] Consumer: Pushing frames to OutboundChannel")
 				consumer.Channel.OutboundChannel <- basicDeliverFrame
 				consumer.Channel.OutboundChannel <- frame

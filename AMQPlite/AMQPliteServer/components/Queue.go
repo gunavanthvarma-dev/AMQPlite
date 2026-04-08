@@ -18,6 +18,7 @@ type Queue struct {
 	MessageCount    uint32
 	ConsumerCount   uint32
 	roundRobinIndex int
+	PendingBuffer   []frames.ContentEnvelope
 
 	ExchangeBindings map[string][]*Binding
 	Consumers        map[string]*Consumer
@@ -45,9 +46,19 @@ func NewQueue(name string, durable bool, autoDelete bool, exclusive bool, ctx co
 
 func (queue *Queue) AddConsumer(consumer *Consumer) {
 	queue.lock.Lock()
-	defer queue.lock.Unlock()
 	queue.Consumers[consumer.ConsumerTag] = consumer
 	queue.consumerKeys = append(queue.consumerKeys, consumer.ConsumerTag)
+	if len(queue.PendingBuffer) > 0 {
+		pendingMessages := queue.PendingBuffer
+		queue.PendingBuffer = queue.PendingBuffer[:0]
+		queue.lock.Unlock()
+		log.Printf("\n[DEBUG] Draining PendingMessages buffer for queue:%s", consumer.QueueName)
+		for _, msg := range pendingMessages {
+			consumer.ConsumerInbound <- msg
+		}
+		return
+	}
+	queue.lock.Unlock()
 }
 
 func (queue *Queue) getConsumer(consumerTag string) *Consumer {
@@ -75,13 +86,15 @@ func (queue *Queue) ForwardMessages() {
 			if len(queue.consumerKeys) == 0 {
 				//do somehting
 				queue.lock.RUnlock()
+				queue.PendingBuffer = append(queue.PendingBuffer, frame)
 				continue
+			} else {
+				queue.roundRobinIndex = (queue.roundRobinIndex) % len(queue.consumerKeys)
+				consumer := queue.getConsumer(queue.consumerKeys[queue.roundRobinIndex])
+				queue.roundRobinIndex++
+				queue.lock.RUnlock()
+				consumer.ConsumerInbound <- frame
 			}
-			queue.roundRobinIndex = (queue.roundRobinIndex) % len(queue.consumerKeys)
-			consumer := queue.getConsumer(queue.consumerKeys[queue.roundRobinIndex])
-			queue.roundRobinIndex++
-			queue.lock.RUnlock()
-			consumer.ConsumerInbound <- frame
 
 		case <-queue.ctx.Done():
 			log.Println("Queue cancelled")

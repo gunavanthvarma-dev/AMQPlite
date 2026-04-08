@@ -62,7 +62,8 @@ func (manager *ChannelManager) ChannelControl(frame frames.FrameEnvelope, connec
 	switch methodID {
 	case 10:
 		//channel.open
-		manager.channels[frame.Channel] = NewChannel(frame.Channel, connection, ctx, cancelfunc)
+		channelCtx, channelCancel := context.WithCancel(ctx)
+		manager.channels[frame.Channel] = NewChannel(frame.Channel, connection, channelCtx, channelCancel)
 		manager.channels[frame.Channel].ParentConnection.WriterChannel <- manager.channels[frame.Channel].SendChannelOpenOK()
 	case 20:
 		//channel.flow

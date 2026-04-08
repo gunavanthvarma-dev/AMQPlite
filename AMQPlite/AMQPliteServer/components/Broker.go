@@ -62,8 +62,10 @@ func NewBroker(ctx context.Context) *Broker {
 
 func (broker *Broker) AddConnection(conn net.Conn) *Connection {
 	connection := NewConnection(conn, broker)
+	broker.lock.Lock()
 	connNumber := len(broker.connections)
 	broker.connections[connNumber] = connection
+	broker.lock.Unlock()
 	return connection
 }
 
