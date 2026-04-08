@@ -12,10 +12,11 @@ import (
 
 type Broker struct {
 	lock            sync.RWMutex
-	connections     map[int]*Connection
+	connections     map[uint64]*Connection
 	ExchangeManager *ExchangeManager
 	QueueManager    *QueueManager
 	ctx             context.Context
+	nextConnId      uint64
 }
 
 const FrameEnd = 0xCE
@@ -24,10 +25,11 @@ func NewBroker(ctx context.Context) *Broker {
 	queueCtx, queueCancel := context.WithCancel(ctx)
 	exchangeCtx, exchangeCancel := context.WithCancel(ctx)
 	broker := &Broker{
-		connections:     make(map[int]*Connection),
+		connections:     make(map[uint64]*Connection),
 		ExchangeManager: NewExchangeManager(exchangeCtx, exchangeCancel),
 		QueueManager:    NewQueueManager(queueCtx, queueCancel),
 		ctx:             ctx,
+		nextConnId:      0,
 	}
 	broker.ExchangeManager.SetBroker(broker)
 	broker.QueueManager.SetBroker(broker)
@@ -63,8 +65,8 @@ func NewBroker(ctx context.Context) *Broker {
 func (broker *Broker) AddConnection(conn net.Conn) *Connection {
 	connection := NewConnection(conn, broker)
 	broker.lock.Lock()
-	connNumber := len(broker.connections)
-	broker.connections[connNumber] = connection
+	broker.connections[broker.nextConnId] = connection
+	broker.nextConnId++
 	broker.lock.Unlock()
 	return connection
 }

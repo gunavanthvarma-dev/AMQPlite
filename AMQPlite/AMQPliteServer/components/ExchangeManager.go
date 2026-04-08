@@ -94,9 +94,14 @@ func (exchangeManager *ExchangeManager) handleFrame(frame frames.FrameEnvelope) 
 }
 
 func (exchangeManager *ExchangeManager) DeclareExchange(name string, exchangeType string, ctx context.Context, cancel context.CancelFunc) (Exchange, error) {
+	exchangeManager.lock.Lock()
+	defer exchangeManager.lock.Unlock()
 	exchange, ok := exchangeManager.exchanges[name]
 	if ok {
-		return nil, errors.New("exchange already exists")
+		if exchange.GetType() == exchangeType {
+			return exchange, nil
+		}
+		return nil, errors.New("exchange already exists with different type")
 	}
 	exchange = NewExchange(name, exchangeType, exchangeManager, ctx, cancel)
 	exchangeManager.exchanges[name] = exchange
@@ -105,6 +110,8 @@ func (exchangeManager *ExchangeManager) DeclareExchange(name string, exchangeTyp
 }
 
 func (exchangeManager *ExchangeManager) DeleteExchange(name string) error {
+	exchangeManager.lock.Lock()
+	defer exchangeManager.lock.Unlock()
 	exchange, ok := exchangeManager.exchanges[name]
 	if !ok {
 		return errors.New("exchange not found")
@@ -115,6 +122,8 @@ func (exchangeManager *ExchangeManager) DeleteExchange(name string) error {
 }
 
 func (exchangeManager *ExchangeManager) GetExchange(name string) (Exchange, error) {
+	exchangeManager.lock.RLock()
+	defer exchangeManager.lock.RUnlock()
 	exchange, ok := exchangeManager.exchanges[name]
 	if !ok {
 		return nil, errors.New("exchange not found")
@@ -136,6 +145,8 @@ func (exchangeManager *ExchangeManager) GetExchange(name string) (Exchange, erro
 // }
 
 func (exchangeManager *ExchangeManager) GetExchanges() map[string]Exchange {
+	exchangeManager.lock.RLock()
+	defer exchangeManager.lock.RUnlock()
 	return exchangeManager.exchanges
 }
 
